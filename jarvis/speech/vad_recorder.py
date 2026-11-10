@@ -19,16 +19,23 @@ ECHO_GUARD_SECONDS = 0.65
 class AdaptiveVadRecorder:
     """Detecta início e fim da fala e atualiza o nível e sensibilidade em tempo real."""
 
-    def __init__(self, on_volume: Callable[..., None] | None = None) -> None:
+    def __init__(self, on_volume: Callable[..., None] | None = None, silence_duration: float = 2.2) -> None:
         self._on_volume = on_volume
         self._noise_floor: float | None = None
         self._sensitivity: float = 2.5
+        self.silence_duration: float = float(silence_duration)
+        self.pause_threshold: float = float(silence_duration)
         self._last_ui_time = 0.0
         self._echo_guard_until = 0.0
 
     def set_sensitivity(self, value: float) -> None:
         """Define o multiplicador de sensibilidade do microfone (1.0x a 6.0x)."""
         self._sensitivity = max(1.0, min(6.0, float(value)))
+
+    def set_silence_duration(self, seconds: float) -> None:
+        """Define a tolerância de pausa no meio da frase (padrão 2.2s)."""
+        self.silence_duration = max(0.5, min(5.0, float(seconds)))
+        self.pause_threshold = self.silence_duration
 
     def record_phrase(
         self,
@@ -43,9 +50,10 @@ class AdaptiveVadRecorder:
     ) -> tuple[sr.AudioData | None, str | None, float, int]:
         """Escuta o fluxo até captar uma frase completa mantendo o medidor de áudio vivo."""
         sec_per_chunk = float(chunk_size) / float(max(sample_rate, 8000))
-        pause_chunks_needed = max(4, int(0.45 / sec_per_chunk))
+        short_pause_chunks = max(5, int(0.58 / sec_per_chunk))
+        breath_pause_chunks = max(short_pause_chunks, int(self.silence_duration / sec_per_chunk))
         min_voice_chunks = max(2, int(0.14 / sec_per_chunk))
-        max_phrase_chunks = max(22, int(4.2 / sec_per_chunk))
+        max_phrase_chunks = max(30, int(9.0 / sec_per_chunk))
 
         pre_roll: deque[bytes] = deque(maxlen=max(4, int(0.24 / sec_per_chunk)))
         recorded: list[bytes] = []
@@ -131,6 +139,11 @@ class AdaptiveVadRecorder:
                     silence_chunks += 1
 
                 self._update_hud(rms, int(self._noise_floor), continue_threshold, is_voice=True)
+
+                # Se for comando curto (ex: "Jarvis", "abra"), responde rápido (0.58s);
+                # se for frase em andamento (>= 0.85s de fala), tolera pausas de respiração de 2.2s!
+                spoken_sec = voice_chunks * sec_per_chunk
+                pause_chunks_needed = breath_pause_chunks if spoken_sec >= 0.85 else short_pause_chunks
 
                 if silence_chunks >= pause_chunks_needed or len(recorded) >= max_phrase_chunks:
                     if voice_chunks >= min_voice_chunks:

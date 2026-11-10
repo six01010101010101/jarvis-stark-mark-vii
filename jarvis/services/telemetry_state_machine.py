@@ -19,6 +19,7 @@ class AssistantState(Enum):
 
     IDLE = "IDLE"
     LISTENING = "LISTENING"
+    PATIENCE_WAIT = "PATIENCE_WAIT"
     PROCESSING = "PROCESSING"
     SPEAKING = "SPEAKING"
     ALERT = "ALERT"

@@ -1,9 +1,10 @@
-"""Estruturas centrais do sistema de comandos: contexto, resultado e registro com cache."""
+"""Estruturas centrais do sistema de comandos: contexto Fire-and-Forget, resultado e registro com cache."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
+import threading
 from typing import TYPE_CHECKING, Callable
 
 from jarvis.contracts import (
@@ -16,6 +17,7 @@ from jarvis.contracts import (
     Speaker,
     StatusView,
 )
+from jarvis.services.conversation_session import ConversationSession
 from jarvis.text_utils import normalize
 
 if TYPE_CHECKING:
@@ -33,7 +35,7 @@ class Outcome(Enum):
 
 @dataclass(frozen=True)
 class CommandContext:
-    """Dependências disponíveis para os comandos."""
+    """Dependências disponíveis para os comandos com disparo de voz prioritário (0ms DB delay)."""
 
     speaker: Speaker
     listener: Listener
@@ -47,23 +49,42 @@ class CommandContext:
     cognitive: CognitiveService | None = None
     session: object | None = None
 
+    def _persist_reply_async(self, text: str) -> None:
+        """Persiste a resposta no SQLite e nuvem em background sem atrasar a voz."""
+        try:
+            if self.memory:
+                if hasattr(self.memory, "record_message_async"):
+                    self.memory.record_message_async("assistant", text)
+                else:
+                    self.memory.record_message("assistant", text)
+        except Exception:
+            pass
+
     def reply(self, text: str, pending_intent: str | None = None) -> None:
-        """Mostra o texto na interface, no CMD e o fala."""
+        """Dispara o áudio no milissegundo 0 em paralelo com o banco de dados e abre Ciclo de Paciência."""
         from jarvis.services.rolling_transcript import GLOBAL_TRANSCRIPT
         from jarvis.services.telemetry_state_machine import AssistantState, GLOBAL_STATE_MACHINE
 
         GLOBAL_STATE_MACHINE.transition_to(AssistantState.SPEAKING, "replying")
         GLOBAL_TRANSCRIPT.add_turn("assistant", text)
-        if self.memory:
-            self.memory.record_message("assistant", text)
         print(f"📋 [LOG CMD 4/4 - RESPOSTA DO JARVIS] 🤖 J.A.R.V.I.S.: \"{text}\"", flush=True)
         print("==========================================================================\n", flush=True)
         self.view.show_status(text)
+
         if self.session and hasattr(self.session, "mark_interaction"):
             is_question = text.strip().endswith("?")
             self.session.mark_interaction(awaiting_answer=is_question, pending_intent=pending_intent)
+
+        # 1. Gravação Fire-and-Forget no SQLite e Supabase em thread daemon
+        threading.Thread(target=self._persist_reply_async, args=(text,), name="reply-db-async", daemon=True).start()
+
+        # 2. Disparo imediato da voz (Prioridade Zero!)
         self.speaker.say(text)
 
+        # 3. Inicia o Ciclo de Paciência (10s) pós-fala
+        if self.session and hasattr(self.session, "activate_patience_window"):
+            self.session.activate_patience_window()
+        GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
 
 
 Handler = Callable[[CommandContext, str], Outcome]
@@ -78,24 +99,21 @@ class Command:
     handler: Handler
 
     def matches(self, utterance: str) -> bool:
-        """Retorna True se algum gatilho aparece na fala (ignora maiúsculas e acentos)."""
         spoken = normalize(utterance)
         return any(normalize(trigger) in spoken for trigger in self.triggers)
 
 
 @dataclass
 class CommandRegistry:
-    """Coleção ordenada de comandos com cache preditivo de 0ms para alta velocidade."""
+    """Coleção ordenada de comandos com cache preditivo de 0ms e intuição de complexidade."""
 
     commands: list[Command] = field(default_factory=list)
     cache: IntentCache | None = None
 
     def register(self, *commands: Command) -> None:
-        """Adiciona comandos ao registro."""
         self.commands.extend(commands)
 
     def find(self, utterance: str) -> Command | None:
-        """Encontra o comando correspondente à fala, ou None."""
         return next((cmd for cmd in self.commands if cmd.matches(utterance)), None)
 
     def _execute_intent(self, ctx: CommandContext, intent: dict[str, str]) -> None:
@@ -139,25 +157,25 @@ class CommandRegistry:
                 ctx.reply(reply)
             return
 
-        if reply:
-            ctx.reply(reply)
-        else:
-            ctx.reply("Não compreendi o comando, senhor.")
+        ctx.reply(reply if reply else "Não compreendi o comando, senhor.")
 
     def dispatch(self, ctx: CommandContext, utterance: str) -> Outcome:
-        """Executa comando imediato, consulta cache (0ms) ou Gemini/Internet para intenções e perguntas."""
+        """Executa comando rápido (<1.5s), consulta cache (0ms) ou aciona raciocínio profundo."""
         command = self.find(utterance)
         if command is not None:
             return command.handler(ctx, utterance)
 
-        # 1. Verifica cache de alta velocidade para ações de sistema
         if self.cache:
             cached = self.cache.get(utterance)
             if cached and cached.get("action") in ("open_url", "open_app", "close_app"):
                 self._execute_intent(ctx, cached)
                 return Outcome.CONTINUE
 
-        # 2. IA + Fontes Web (Google/Wikipedia/Clima) + SQLite analisam a intenção ou pergunta
+        complexity = ConversationSession.evaluate_query_complexity(utterance)
+        if complexity == "DEEP" and hasattr(ctx.speaker, "speak_thinking_filler"):
+            ctx.view.show_status("🧠 RACIOCINANDO PROFUNDO // CONSULTANDO DADOS...")
+            ctx.speaker.speak_thinking_filler()
+
         try:
             intent = ctx.answers.interpret_intent(utterance)
             action = intent.get("action", "chat")

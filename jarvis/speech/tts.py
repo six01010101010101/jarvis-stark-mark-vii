@@ -1,8 +1,10 @@
-"""Síntese de voz limpa e cinematográfica (Edge-TTS pt-BR) com fallback nativo Windows (SAPI5)."""
+"""Síntese de voz limpa e cinematográfica (Edge-TTS pt-BR) com streaming por frases e SAPI5."""
 
 from __future__ import annotations
 
 import logging
+import queue
+import re
 import threading
 from typing import Callable
 
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class NativeWindowsSpeaker(Speaker):
-    """Sintetizador de voz nativo do Windows (SAPI5 / Microsoft Speech) com latência zero."""
+    """Sintetizador de voz nativo do Windows (SAPI5 / Microsoft Speech) com fila de sentenças."""
 
     def __init__(
         self,
@@ -25,6 +27,8 @@ class NativeWindowsSpeaker(Speaker):
         self._profile = "male"
         self._voice: object = None
         self._pyttsx_engine: object = None
+        self._queue: queue.Queue[tuple[str, Callable[[], None] | None]] = queue.Queue()
+        self.is_speaking = False
         self._init_voice()
 
     def _init_voice(self) -> None:
@@ -60,18 +64,15 @@ class NativeWindowsSpeaker(Speaker):
                     desc = v.GetDescription().lower()
                     if is_female and any(k in desc for k in ("maria", "zira", "female", "helena")):
                         self._voice.Voice = v  # type: ignore[attr-defined]
-                        logger.info("Voz SAPI alterada para: %s", v.GetDescription())
                         return True
                     elif not is_female and any(k in desc for k in ("daniel", "david", "male", "george", "mark")):
                         self._voice.Voice = v  # type: ignore[attr-defined]
-                        logger.info("Voz SAPI alterada para: %s", v.GetDescription())
                         return True
                 if not is_female and voices:
                     for v in voices:
                         desc = v.GetDescription().lower()
                         if not any(k in desc for k in ("maria", "zira", "female", "helena")):
                             self._voice.Voice = v  # type: ignore[attr-defined]
-                            logger.info("Voz SAPI alterada para: %s", v.GetDescription())
                             return True
             except Exception as exc:
                 logger.debug("Erro ao selecionar voz SAPI: %s", exc)
@@ -87,12 +88,6 @@ class NativeWindowsSpeaker(Speaker):
                     elif not is_female and any(k in desc for k in ("daniel", "david", "male", "george", "mark")):
                         self._pyttsx_engine.setProperty("voice", v.id)  # type: ignore[attr-defined]
                         return True
-                if not is_female and voices:
-                    for v in voices:
-                        desc = f"{v.id} {v.name}".lower()
-                        if not any(k in desc for k in ("maria", "zira", "female", "helena")):
-                            self._pyttsx_engine.setProperty("voice", v.id)  # type: ignore[attr-defined]
-                            return True
             except Exception:
                 pass
 
@@ -101,6 +96,22 @@ class NativeWindowsSpeaker(Speaker):
     def get_voice(self) -> str:
         return "Daniel (Masculina)" if self._profile == "male" else "Maria (Feminina)"
 
+    def speak(self, text: str) -> None:
+        """Compatibilidade direta com NeuralSpeakerStream."""
+        self.say(text)
+
+    def speak_async(self, text: str, on_complete: Callable[[], None] | None = None) -> None:
+        """Reproduz por sentenças em background."""
+        chunks = [c.strip() for c in re.split(r"(?<=[.!?।:;])\s+", text.strip()) if c.strip()]
+
+        def _worker() -> None:
+            for ch in chunks:
+                self.say(ch)
+            if on_complete:
+                on_complete()
+
+        threading.Thread(target=_worker, name="sapi-stream", daemon=True).start()
+
     def say(self, text: str) -> None:
         """Fala a frase de forma síncrona, direta e sem deadlocks."""
         clean = text.strip()
@@ -108,6 +119,7 @@ class NativeWindowsSpeaker(Speaker):
             return
 
         with self._lock:
+            self.is_speaking = True
             try:
                 import comtypes
                 comtypes.CoInitialize()
@@ -120,7 +132,6 @@ class NativeWindowsSpeaker(Speaker):
             self._on_start()
             try:
                 if self._voice is not None:
-                    # 0 = SVSFDefault (síncrono: reproduz e retorna após o término do áudio)
                     self._voice.Speak(clean, 0)  # type: ignore[attr-defined]
                 elif self._pyttsx_engine is not None:
                     self._pyttsx_engine.say(clean)  # type: ignore[attr-defined]
@@ -128,16 +139,16 @@ class NativeWindowsSpeaker(Speaker):
             except Exception as exc:
                 logger.error("Erro durante síntese de voz: %s", exc)
             finally:
+                self.is_speaking = False
                 self._on_end()
 
 
-# Aliases de compatibilidade para código legado e testes
 PyttsxSpeaker = NativeWindowsSpeaker
 WinRTSpeaker = NativeWindowsSpeaker
 
 
 def build_speaker(on_start: Callable[[], None], on_end: Callable[[], None]) -> Speaker:
-    """Retorna o sintetizador com voz limpa (Edge-TTS) e fallback nativo offline."""
+    """Retorna o sintetizador com voz limpa (Edge-TTS), streaming por frases e fallback nativo."""
     from jarvis.services.neural_speaker import NeuralSpeaker
     native_fallback = NativeWindowsSpeaker(on_start=lambda: None, on_end=lambda: None)
     return NeuralSpeaker(fallback=native_fallback, on_start=on_start, on_end=on_end)

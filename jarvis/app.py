@@ -37,7 +37,7 @@ from jarvis.ui.app_window import JarvisWindow
 logger = logging.getLogger(__name__)
 
 COMMAND_TIMEOUT_SECONDS = 6.0
-DIALOGUE_FOLLOW_UP_SECONDS = 20.0
+DIALOGUE_FOLLOW_UP_SECONDS = 10.0
 
 
 class JarvisApplication:
@@ -49,12 +49,14 @@ class JarvisApplication:
         self._thread: threading.Thread | None = None
         self._speaker = None
         self._listener: GoogleSpeechListener | None = None
+        self._session: ConversationSession | None = None
         self._window = JarvisWindow(
             root,
             on_start=self.start,
             on_voice_change=self._handle_voice_change,
             on_device_selected=self._handle_device_change,
             on_sensitivity_change=self._handle_sensitivity_change,
+            on_patience_change=self._handle_patience_change,
         )
         root.protocol("WM_DELETE_WINDOW", lambda: self._close(root))
 
@@ -69,6 +71,10 @@ class JarvisApplication:
     def _handle_sensitivity_change(self, value: float) -> None:
         if self._listener and hasattr(self._listener, "set_sensitivity"):
             self._listener.set_sensitivity(value)
+
+    def _handle_patience_change(self, seconds: float) -> None:
+        if self._session:
+            self._session.set_patience_seconds(seconds)
 
     def start(self) -> None:
         """Inicia a thread do assistente (ignorado se já estiver em execução)."""
@@ -94,7 +100,8 @@ class JarvisApplication:
             intent_cache = IntentCache(memory_repo)
             corrector = SpeechCorrector()
             sounds = StarkSoundPlayer()
-            session = ConversationSession(timeout_seconds=DIALOGUE_FOLLOW_UP_SECONDS)
+            session = ConversationSession(patience_seconds=DIALOGUE_FOLLOW_UP_SECONDS, silence_tolerance=2.2)
+            self._session = session
             terminal = TerminalBridge()
             feedback = WakeFeedback(signal=self._window, sounds=sounds)
 

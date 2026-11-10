@@ -1,4 +1,4 @@
-"""Interface holográfica Tony Stark Mark VII: Holograma 3D, seletor de vozes e Reator Arc."""
+"""Interface holográfica Tony Stark Mark VII: Holograma 3D, Controle Rápido de Microfone e Paciência."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ import tkinter as tk
 from typing import Callable
 
 from jarvis.ui import theme
-from jarvis.ui.audio_meter import AudioMeterWidget
+from jarvis.ui.audio_meter import StarkMicControlPanel
 from jarvis.ui.wake_indicator import WakeIndicator
 
 
 class JarvisWindow:
-    """Interface HUD holográfica com renderização 3D wireframe e controle de vozes."""
+    """Interface HUD holográfica Mark VII com renderização 3D wireframe e controles em tempo real."""
 
     def __init__(
         self,
@@ -22,12 +22,14 @@ class JarvisWindow:
         on_voice_change: Callable[[str], None] | None = None,
         on_device_selected: Callable[[int], None] | None = None,
         on_sensitivity_change: Callable[[float], None] | None = None,
+        on_patience_change: Callable[[float], None] | None = None,
     ) -> None:
         self._root = root
         self._on_start = on_start
         self._on_voice_change = on_voice_change
         self._on_device_selected = on_device_selected
         self._on_sensitivity_change = on_sensitivity_change
+        self._on_patience_change = on_patience_change
         self._speaking = threading.Event()
         self._is_active = False
         self._angle_y = 0.0
@@ -39,8 +41,8 @@ class JarvisWindow:
         root.configure(bg=theme.BG_COLOR)
 
         screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
-        pos_x = max(0, (screen_w - 380) // 2)
-        pos_y = max(0, (screen_h - 520) // 2)
+        pos_x = max(0, (screen_w - 420) // 2)
+        pos_y = max(0, (screen_h - 740) // 2)
         root.geometry(f"{theme.WINDOW_GEOMETRY}+{pos_x}+{pos_y}")
         root.lift()
         root.attributes("-topmost", True)
@@ -50,7 +52,7 @@ class JarvisWindow:
             root, text="J.A.R.V.I.S.", bg=theme.BG_COLOR, fg=theme.FG_COLOR,
             font=("Consolas", 18, "bold"),
         )
-        self._title.pack(pady=(10, 0))
+        self._title.pack(pady=(8, 0))
 
         self._subtitle = tk.Label(
             root, text="STARK INDUSTRIES // MARK VII HUD", bg=theme.BG_COLOR,
@@ -58,45 +60,54 @@ class JarvisWindow:
         )
         self._subtitle.pack(pady=(0, 4))
 
-        # LED de ativação por voz (verde quando o Jarvis ouve o próprio nome)
+        # LED de ativação por voz (verde #00FF88 quando o Jarvis ouve o próprio nome)
         self._wake_led = WakeIndicator(root, root)
 
         self._canvas = tk.Canvas(
             root, width=theme.CANVAS_SIZE, height=theme.CANVAS_SIZE,
             bg=theme.BG_COLOR, highlightthickness=0, cursor="hand2",
         )
-        self._canvas.pack(pady=4)
+        self._canvas.pack(pady=2)
         self._canvas.bind("<Button-1>", lambda _: self._handle_start())
 
         # Painel de Seleção de Vozes (Masculina / Feminina)
         voice_frame = tk.Frame(root, bg=theme.BG_COLOR)
-        voice_frame.pack(pady=4)
+        voice_frame.pack(pady=2)
 
         self._btn_male = tk.Button(
-            voice_frame, text="♂ DANIEL (MASC)", bg=theme.ACTIVE_BTN_BG, fg=theme.FG_COLOR,
-            font=("Consolas", 9, "bold"), bd=1, relief="ridge", command=lambda: self._select_voice("male"),
+            voice_frame, text="♂ JARVIS (MASC)", bg=theme.ACTIVE_BTN_BG, fg=theme.FG_COLOR,
+            font=("Consolas", 8, "bold"), bd=1, relief="ridge", command=lambda: self._select_voice("male"),
         )
         self._btn_male.pack(side="left", padx=6)
 
         self._btn_female = tk.Button(
-            voice_frame, text="♀ MARIA (FEM)", bg=theme.INACTIVE_BTN_BG, fg=theme.MUTED_COLOR,
-            font=("Consolas", 9, "bold"), bd=1, relief="ridge", command=lambda: self._select_voice("female"),
+            voice_frame, text="♀ FRANCISCA (FEM)", bg=theme.INACTIVE_BTN_BG, fg=theme.MUTED_COLOR,
+            font=("Consolas", 8, "bold"), bd=1, relief="ridge", command=lambda: self._select_voice("female"),
         )
         self._btn_female.pack(side="left", padx=6)
 
-        # Monitor de áudio e seletor de microfone interativo
-        self._meter = AudioMeterWidget(
+        # Painel HUD de Configuração Rápida de Microfone, Ganho e Ciclo de Paciência
+        self._meter = StarkMicControlPanel(
             root,
-            root,
+            root=root,
             on_device_selected=self._on_device_selected,
             on_sensitivity_change=self._on_sensitivity_change,
+            on_patience_change=self._on_patience_change,
         )
 
         self._status_bar = tk.Label(
-            root, text=theme.INITIAL_TEXT, bg=theme.CARD_BG, fg=theme.FG_COLOR,
-            font=("Consolas", 9), wraplength=theme.LABEL_WRAP, padx=12, pady=6,
+            root,
+            text=theme.INITIAL_TEXT,
+            bg=theme.CARD_BG,
+            fg=theme.FG_COLOR,
+            highlightbackground=theme.ACCENT_CYAN,
+            highlightthickness=1,
+            font=("Consolas", 9, "bold"),
+            wraplength=theme.LABEL_WRAP,
+            padx=12,
+            pady=6,
         )
-        self._status_bar.pack(pady=(8, 12), fill="x", padx=16)
+        self._status_bar.pack(pady=(6, 10), fill="x", padx=16)
 
         self._render_frame()
         self._animate()
@@ -120,31 +131,37 @@ class JarvisWindow:
         pulse = math.sin(self._pulse_val) * (7 if self._speaking.is_set() else 3)
         wire_color = theme.HOLO_GREEN if self._speaking.is_set() else theme.HOLO_CYAN
 
-        # Anel de mira e telemetria externa
-        r_outer = 105 + pulse
+        r_outer = 96 + pulse
         c.create_oval(cx - r_outer, cy - r_outer, cx + r_outer, cy + r_outer, outline=theme.MUTED_COLOR, width=1)
         for i in range(12):
             ang = math.radians(i * 30 + self._angle_y * 10)
-            c.create_line(cx + 96 * math.cos(ang), cy + 96 * math.sin(ang), cx + 104 * math.cos(ang), cy + 104 * math.sin(ang), fill=theme.MUTED_COLOR)
+            c.create_line(
+                cx + 88 * math.cos(ang),
+                cy + 88 * math.sin(ang),
+                cx + 95 * math.cos(ang),
+                cy + 95 * math.sin(ang),
+                fill=theme.MUTED_COLOR,
+            )
 
-        # Projeção 3D com rotação em Y do capacete do Homem de Ferro
         rad = math.radians(self._angle_y)
         cos_y, sin_y = math.cos(rad), math.sin(rad)
         projected: list[tuple[float, float]] = []
 
         for x, y, z in theme.IRONMAN_3D_VERTICES:
             rx = x * cos_y + z * sin_y
-            rz = -x * sin_y + z * cos_y + 140
-            focal = 190 / rz
+            rz = -x * sin_y + z * cos_y + 145
+            focal = 180 / rz
             projected.append((cx + rx * focal, cy + y * focal))
 
         for idx1, idx2 in theme.IRONMAN_3D_EDGES:
             p1, p2 = projected[idx1], projected[idx2]
             c.create_line(p1[0], p1[1], p2[0], p2[1], fill=wire_color, width=2)
 
-        # Núcleo de energia central (Reator Arc)
-        r_core = 14 + pulse * 0.6
-        c.create_oval(cx - r_core, cy - r_core + 8, cx + r_core, cy + r_core + 8, outline=wire_color, fill=theme.HOLO_CORE, width=2)
+        r_core = 13 + pulse * 0.6
+        c.create_oval(
+            cx - r_core, cy - r_core + 8, cx + r_core, cy + r_core + 8,
+            outline=wire_color, fill=theme.HOLO_CORE, width=2,
+        )
 
     def _animate(self) -> None:
         if self._is_active:
@@ -173,7 +190,6 @@ class JarvisWindow:
         self._root.after(0, lambda: self._status_bar.config(text=text.upper()))
 
     def set_wake_state(self, state: str, heard: str = "") -> None:
-        """Atualiza o LED de ativação: 'standby', 'heard' (verde) ou 'dialogue'."""
         self._wake_led.set_state(state, heard)
 
     def set_speaking(self, speaking: bool) -> None:

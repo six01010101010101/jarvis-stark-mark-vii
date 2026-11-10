@@ -152,9 +152,10 @@ def _search_ai(ctx: CommandContext, utterance: str) -> Outcome:
         topic = utterance.strip()
 
     try:
-        answer = ctx.answers.ask(utterance)
+        query = topic if any(p in normalize(utterance) for p in ("pesquisar", "pesquise")) else utterance
+        answer = ctx.answers.ask(query)
         if ctx.memory:
-            ctx.memory.set_memory(f"fact:{topic[:40]}", answer, category="knowledge")
+            ctx.memory.remember(f"fact:{topic[:40]}", answer, category="knowledge")
         ctx.reply(answer)
     except AnswerServiceError:
         logger.exception("Falha na consulta de conhecimento")

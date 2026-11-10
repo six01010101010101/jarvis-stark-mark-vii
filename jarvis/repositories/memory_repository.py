@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from typing import Any
 
 from jarvis.database.connection import DatabaseConnection
@@ -14,6 +15,7 @@ class MemoryRepository:
     def __init__(self, db: DatabaseConnection, cloud_sync: object | None = None) -> None:
         self._db = db
         self._cloud_sync = cloud_sync
+        self._write_lock = threading.Lock()
 
     @property
     def _conn(self) -> sqlite3.Connection:
@@ -50,15 +52,42 @@ class MemoryRepository:
         )
         return [dict(row) for row in cur.fetchall()]
 
+    def remember(self, key: str, value: str, category: str = "general") -> None:
+        """Salva memória em background (Fire-and-Forget) para não bloquear a síntese de voz."""
+        threading.Thread(
+            target=self._safe_set_memory,
+            args=(key, value, category),
+            name="sqlite-mem-async",
+            daemon=True,
+        ).start()
+
+    def _safe_set_memory(self, key: str, value: str, category: str) -> None:
+        try:
+            with self._write_lock:
+                self.set_memory(key, value, category)
+        except Exception:
+            pass
+
     def record_message(self, role: str, content: str) -> None:
         """Grava uma interação no histórico de conversas."""
-        with self._conn:
-            self._conn.execute(
-                "INSERT INTO conversations (role, content) VALUES (?, ?);",
-                (role, content),
-            )
+        with self._write_lock:
+            with self._conn:
+                self._conn.execute(
+                    "INSERT INTO conversations (role, content) VALUES (?, ?);",
+                    (role, content),
+                )
         if self._cloud_sync and hasattr(self._cloud_sync, "sync_conversation_async"):
             self._cloud_sync.sync_conversation_async(role, content)
+
+    def record_message_async(self, role: str, content: str) -> None:
+        """Grava interação no SQLite e Supabase em background (0ms de bloqueio na voz)."""
+        def _worker() -> None:
+            try:
+                self.record_message(role, content)
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, name="sqlite-msg-async", daemon=True).start()
 
     def get_recent_history(self, limit: int = 10) -> list[dict[str, str]]:
         """Recupera as últimas mensagens trocadas."""

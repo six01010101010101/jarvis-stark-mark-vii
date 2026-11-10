@@ -82,7 +82,7 @@ def _close_app(ctx: CommandContext, utterance: str) -> Outcome:
         return Outcome.CONTINUE
 
     if ctx.processes.close_app(target):
-        ctx.reply(f"Certo, encerrando {target.capitalize()}.")
+        ctx.reply(f"Certo, fechando {target.capitalize()}.")
     else:
         ctx.reply(f"Não encontrei {target.capitalize()} aberto no momento.")
     return Outcome.CONTINUE

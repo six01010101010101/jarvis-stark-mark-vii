@@ -8,10 +8,16 @@ from pathlib import Path
 
 from jarvis.contracts import AnswerProvider, CognitiveService
 from jarvis.repositories.artifact_repository import ArtifactRepository
+from jarvis.services.conversation_session import ConversationSession
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_ARTIFACTS_DIR = Path(__file__).resolve().parent.parent.parent / "jarvis_artifacts"
+
+
+def classify_query_complexity(query: str) -> str:
+    """Classifica se a consulta é 'FAST' (< 12 palavras / local) ou 'DEEP' (complexa / web / IA)."""
+    return ConversationSession.evaluate_query_complexity(query)
 
 
 def _sanitize_filename(name: str) -> str:
@@ -32,6 +38,12 @@ class CognitiveEngine(CognitiveService):
         self._artifacts = artifacts
         self._artifacts_dir = artifacts_dir
         self._artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    def process(self, user_text: str, mode: str | None = None) -> str:
+        """Processa uma pergunta rápida ('FAST') ou profunda ('DEEP') usando o AnswerProvider."""
+        resolved_mode = mode or classify_query_complexity(user_text)
+        logger.debug("CognitiveEngine processando consulta em modo %s: '%s'", resolved_mode, user_text)
+        return self._answers.ask(user_text)
 
     def _generate_and_save(
         self,

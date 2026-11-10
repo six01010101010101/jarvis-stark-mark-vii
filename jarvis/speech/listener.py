@@ -17,6 +17,10 @@ from jarvis.speech.vad_recorder import AdaptiveVadRecorder
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_ENERGY_THRESHOLD = 140
+MIN_ENERGY_THRESHOLD = 45
+MAX_ENERGY_THRESHOLD = 480
+
 
 class MicrophoneError(Exception):
     """Nenhum microfone disponível ou falha ao acessá-lo."""

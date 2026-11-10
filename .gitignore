@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 github_repos/
+_backup_mark_vii/
 jarvis_sounds/tts_cache/
 *.db-shm
 *.db-wal

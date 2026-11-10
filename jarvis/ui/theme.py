@@ -1,24 +1,25 @@
-"""Tokens visuais e geometria 3D holográfica Tony Stark (Arc Reactor & Iron Man Helmet)."""
+"""Tokens visuais e geometria 3D holográfica Tony Stark (Arc Reactor & Iron Man Helmet Mark VII)."""
 
 WINDOW_TITLE = "J.A.R.V.I.S. // STARK INDUSTRIES MARK VII"
-WINDOW_GEOMETRY = "395x645"
+WINDOW_GEOMETRY = "420x740"
 INITIAL_TEXT = "MARK VII // SISTEMAS DEFENSIVOS E IA ONLINE"
-LABEL_WRAP = 340
+LABEL_WRAP = 370
 
-# Paleta Holográfica Stark HUD
-BG_COLOR = "#040810"
-CARD_BG = "#081424"
+# Paleta Holográfica Stark Mark VII HUD
+BG_COLOR = "#060A12"
+CARD_BG = "#070B12"
 FG_COLOR = "#00F0FF"
 ACCENT_COLOR = "#FFB703"
 ACCENT_CYAN = "#00F0FF"
+ALERT_GREEN = "#00FF88"
 MUTED_COLOR = "#16344E"
 HOLO_CYAN = "#00F0FF"
-HOLO_GREEN = "#00FFA3"
+HOLO_GREEN = "#00FF88"
 HOLO_CORE = "#0077B6"
 ACTIVE_BTN_BG = "#003B5C"
 INACTIVE_BTN_BG = "#091726"
 
-CANVAS_SIZE = 240
+CANVAS_SIZE = 220
 ANIMATION_INTERVAL_MS = 35
 
 # Vértices 3D normalizados do Capacete e Núcleo do Homem de Ferro

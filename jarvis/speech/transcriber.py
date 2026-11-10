@@ -1,7 +1,8 @@
-"""Motor de transcrição multicamada (HTTPS L16 Direto + Google STT + Gemini + SAPI5)."""
+"""Motor de transcrição multicamada (GPU CUDA Faster-Whisper + HTTPS L16 Direto + Google STT + Gemini)."""
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import urllib.request
@@ -20,21 +21,41 @@ CHROME_USER_AGENT = (
 
 
 class MultiEngineTranscriber:
-    """Converte áudio capturado em texto garantindo funcionamento com ou sem VPN."""
+    """Converte áudio capturado em texto priorizando GPU CUDA (RTX 4060) e HTTPS Direto."""
 
     def __init__(
         self,
         recognizer: sr.Recognizer,
         language: str = "pt-BR",
         gemini: object | None = None,
+        device: str = "cuda",
+        compute_type: str = "float16",
     ) -> None:
         self._recognizer = recognizer
         self._language = language
         self._gemini = gemini
+        self.device = device
+        self.compute_type = compute_type
+        self._gpu_model: object | None = None
+        self._init_gpu_accelerator()
+
+    def _init_gpu_accelerator(self) -> None:
+        """Inicializa aceleração de hardware GPU (CUDA / float16 para RTX 4060) se Faster-Whisper estiver presente."""
+        try:
+            from faster_whisper import WhisperModel  # type: ignore[import-not-found]
+            self._gpu_model = WhisperModel("small", device=self.device, compute_type=self.compute_type)
+            logger.info("⚡ [GPU-STT] Faster-Whisper ativado na RTX (%s / %s).", self.device, self.compute_type)
+        except Exception:
+            self._gpu_model = None
 
     def transcribe(self, audio: sr.AudioData) -> tuple[str | None, str]:
-        """Tenta transcrever o áudio através de múltiplas camadas independentes."""
-        # Camada 1: HTTPS Direto com PCM L16 16kHz e User-Agent Chrome (Imune a redirect HTTP e sem flac.exe)
+        """Tenta transcrever o áudio através de múltiplas camadas de baixa latência."""
+        if self._gpu_model is not None:
+            text = self._transcribe_cuda_whisper(audio)
+            if text:
+                return text, "GPU-CUDA-Float16"
+
+        # Camada 1: HTTPS Direto com PCM L16 16kHz e User-Agent Chrome
         text = self._transcribe_https_l16(audio)
         if text:
             return text, "Google-HTTPS-Direct"
@@ -50,6 +71,23 @@ class MultiEngineTranscriber:
             return text, "Gemini-Neural"
 
         return None, "None"
+
+    def _transcribe_cuda_whisper(self, audio: sr.AudioData) -> str | None:
+        if self._gpu_model is None:
+            return None
+        try:
+            wav_bytes = audio.get_wav_data(convert_rate=16000, convert_width=2)
+            segments, _ = self._gpu_model.transcribe(  # type: ignore[attr-defined]
+                io.BytesIO(wav_bytes),
+                language="pt",
+                beam_size=1,
+                vad_filter=True,
+            )
+            joined = " ".join(seg.text.strip() for seg in segments).strip()
+            return joined if joined else None
+        except Exception as exc:
+            logger.debug("Camada GPU CUDA falhou: %s", exc)
+            return None
 
     def _transcribe_https_l16(self, audio: sr.AudioData) -> str | None:
         """Envia PCM 16-bit 16kHz diretamente via HTTPS com cabeçalho de navegador real."""
@@ -73,7 +111,7 @@ class MultiEngineTranscriber:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            with urllib.request.urlopen(req, timeout=3.2) as resp:
                 body = resp.read().decode("utf-8", errors="ignore")
             return self._parse_chromium_json(body)
         except Exception as exc:
@@ -81,9 +119,8 @@ class MultiEngineTranscriber:
             return None
 
     def _transcribe_google_https(self, audio: sr.AudioData) -> str | None:
-        """Usa o reconhecedor FLAC mas forçando HTTPS para evitar perda de POST em VPN."""
         try:
-            self._recognizer.operation_timeout = 3.5
+            self._recognizer.operation_timeout = 3.2
             res = self._recognizer.recognize_google(
                 audio,
                 language=self._language,
@@ -96,7 +133,6 @@ class MultiEngineTranscriber:
             return None
 
     def _transcribe_gemini(self, audio: sr.AudioData) -> str | None:
-        """Aciona a transcrição via API Gemini caso configurada."""
         if not self._gemini or not hasattr(self._gemini, "transcribe_audio"):
             return None
         try:

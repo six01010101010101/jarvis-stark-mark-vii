@@ -67,6 +67,19 @@ class SupabaseSyncService:
 
         threading.Thread(target=_worker, name="supabase-sync-chat", daemon=True).start()
 
+    def push_async(self, user_text: str, reply_text: str) -> None:
+        """Envia o turno completo (usuário + resposta) em background (Fire-and-Forget)."""
+        if not self.is_configured:
+            return
+
+        def _worker() -> None:
+            if user_text.strip():
+                self._post("jarvis_conversations", {"role": "user", "content": user_text.strip()})
+            if reply_text.strip():
+                self._post("jarvis_conversations", {"role": "assistant", "content": reply_text.strip()})
+
+        threading.Thread(target=_worker, name="supabase-push-async", daemon=True).start()
+
     def sync_artifact_async(self, artifact_type: str, title: str, content: str, format_type: str = "markdown") -> None:
         """Envia artefato cognitivo para o Supabase em thread paralela."""
         if not self.is_configured:
