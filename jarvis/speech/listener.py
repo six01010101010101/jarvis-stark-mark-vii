@@ -11,6 +11,7 @@ from typing import Callable
 import speech_recognition as sr
 
 from jarvis.speech.audio_stream import list_input_devices, pick_default_device_index
+from jarvis.speech.metered_stream import MeteredAudioStream
 from jarvis.speech.transcriber import MultiEngineTranscriber
 from jarvis.speech.vad_recorder import AdaptiveVadRecorder
 
