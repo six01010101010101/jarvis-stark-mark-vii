@@ -1,0 +1,7 @@
+SpeechRecognition>=3.10
+PyAudio>=0.2.14
+pyttsx3>=2.98
+winsdk>=1.0.0b10
+google-genai>=1.0
+python-dotenv>=1.0
+edge-tts>=6.1.0
