@@ -18,6 +18,7 @@ from jarvis.commands.presence_commands import presence_commands
 from jarvis.commands.privacy_commands import privacy_commands
 from jarvis.commands.registry import Command, CommandContext, CommandRegistry, Outcome
 from jarvis.commands.screen_commands import screen_commands
+from jarvis.commands.stop_commands import stop_commands
 from jarvis.commands.system_commands import close_commands, system_commands
 from jarvis.commands.telemetry_commands import telemetry_commands
 from jarvis.commands.timer_commands import timer_commands
@@ -35,6 +36,7 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
     """Cria o registro completo de comandos do J.A.R.V.I.S."""
     registry = CommandRegistry(cache=cache)
     registry.register(
+        *stop_commands(),
         *close_commands(),
         *user_shortcuts(),
         *presence_commands(),

@@ -8,7 +8,6 @@ import os
 import queue
 import struct
 import threading
-import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -65,8 +64,7 @@ def list_input_devices() -> list[AudioDeviceInfo]:
     p = pyaudio.PyAudio()
     devices: list[AudioDeviceInfo] = []
     try:
-        count = p.get_device_count()
-        for idx in range(count):
+        for idx in range(p.get_device_count()):
             try:
                 info = p.get_device_info_by_index(idx)
                 max_in = int(info.get("maxInputChannels", 0))
@@ -88,12 +86,8 @@ def test_device_connectivity(device_index: int) -> bool:
         info = p.get_device_info_by_index(device_index)
         rate = int(info.get("defaultSampleRate", SAMPLE_RATE))
         stream = p.open(
-            format=FORMAT,
-            channels=1,
-            rate=rate,
-            input=True,
-            input_device_index=device_index,
-            frames_per_buffer=256,
+            format=FORMAT, channels=1, rate=rate, input=True,
+            input_device_index=device_index, frames_per_buffer=256,
         )
         data = stream.read(256, exception_on_overflow=False)
         stream.stop_stream()
@@ -109,7 +103,6 @@ def pick_default_device_index(devices: list[AudioDeviceInfo]) -> int | None:
     """Seleciona o microfone físico ativo com conectividade comprovada na porta."""
     if not devices:
         return None
-
     env_idx = os.getenv("JARVIS_MIC_INDEX") or os.getenv("JARVIS_MICROPHONE_INDEX")
     if env_idx and env_idx.strip().isdigit():
         target = int(env_idx.strip())
@@ -119,27 +112,23 @@ def pick_default_device_index(devices: list[AudioDeviceInfo]) -> int | None:
 
     blacklist = ("mixagem", "stereo mix", "virtual", "cable", "steam", "mapeador")
     priority = ("microfone", "microphone", "mic", "headset", "realtek", "array", "fone", "usb")
-
-    # 1. Filtra dispositivos físicos prioritários com conectividade real confirmada
-    first_priority_idx: int | None = None
+    first_priority: int | None = None
     for d in devices:
         low = d.name.lower()
         if any(b in low for b in blacklist):
             continue
         if any(p in low for p in priority):
-            if first_priority_idx is None:
-                first_priority_idx = d.index
+            if first_priority is None:
+                first_priority = d.index
             if test_device_connectivity(d.index):
                 return d.index
-    if first_priority_idx is not None:
-        return first_priority_idx
+    if first_priority is not None:
+        return first_priority
 
-    # 2. Testa o dispositivo padrão do Windows
     try:
         p = pyaudio.PyAudio()
         try:
-            def_info = p.get_default_input_device_info()
-            def_idx = int(def_info.get("index", -1))
+            def_idx = int(p.get_default_input_device_info().get("index", -1))
             if any(d.index == def_idx for d in devices) and test_device_connectivity(def_idx):
                 return def_idx
         finally:
@@ -147,24 +136,17 @@ def pick_default_device_index(devices: list[AudioDeviceInfo]) -> int | None:
     except Exception:
         pass
 
-    # 3. Qualquer dispositivo conectado que responda ao teste de porta
     for d in devices:
         if test_device_connectivity(d.index):
             return d.index
-
     return devices[0].index
 
 
 class ContinuousAudioStream:
     """Adaptador de fluxo contínuo de áudio para compatibilidade e monitoramento."""
 
-    def __init__(
-        self,
-        device_index: int | None = None,
-        on_volume: Callable[[float], None] | None = None,
-    ) -> None:
-        self._device_index = device_index
-        self._on_volume = on_volume
+    def __init__(self, device_index: int | None = None, on_volume: Callable[[float], None] | None = None) -> None:
+        self._device_index, self._on_volume = device_index, on_volume
         self._queue: queue.Queue[tuple[bytes, int]] = queue.Queue(maxsize=60)
         self._stop_event = threading.Event()
 

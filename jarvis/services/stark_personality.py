@@ -1,15 +1,24 @@
-"""Personalidade e saudações cinematográficas do Homem de Ferro / Tony Stark."""
+"""Personalidade viva, saudações cinematográficas e gírias descontraídas de amigo para o Ken."""
 
 from __future__ import annotations
 
-WAKE_PROMPT = "Sim, senhor, o que você gostaria de fazer?"
+WELCOME_GREETING = "Bem-vindo, {user}."
 
-WAKE_RESPONSES = (
-    "Sim, senhor, o que você gostaria de fazer?",
-    "Sim, senhor, o que você gostaria?",
-    "Pois não, senhor, o que você gostaria de fazer?",
-    "Às suas ordens, senhor. O que gostaria que eu fizesse?",
+FIRST_WAKE_RESPONSE = "Oi, senhor, tudo bem? Como o senhor está? Eu estou bem. Sim, senhor, o que você gostaria de fazer hoje ou conversar?"
+
+SUBSEQUENT_WAKE_RESPONSES = (
+    "Pode falar, senhor! O que é desta vez? Manda ver!",
+    "Manda ver, meu parceiro! O que tá pegando?",
+    "Fala aí, Ken! Tô na área, pode soltar o verbo.",
+    "Pode falar, meu bom! O que você manda eu faço.",
+    "Diga lá, parceiro! Manda bala, no que posso ajudar?",
+    "Tô na escuta, meu parceiro! O que vamos aprontar desta vez?",
+    "Pode falar, chefe! Manda a boa.",
+    "Opa, fala tu, Ken! Tô por aqui, manda ver.",
 )
+
+WAKE_RESPONSES = (FIRST_WAKE_RESPONSE, *SUBSEQUENT_WAKE_RESPONSES)
+WAKE_PROMPT = FIRST_WAKE_RESPONSE
 
 TONY_STARK_GREETINGS = (
     "{greeting}, senhor {user}. Como está sendo o seu dia? Todos os sistemas calibrados. O que gostaria de fazer agora?",

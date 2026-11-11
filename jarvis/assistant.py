@@ -1,4 +1,4 @@
-"""Orquestração Blindada: Desempacotamento Seguro, Wake Word Imediata, Ciclo de Paciência e Conversa Ao Vivo."""
+"""Orquestração de voz com parada imediata ('Jarvis, pare'), saudação hospitaleira e gírias."""
 
 from __future__ import annotations
 
@@ -11,8 +11,15 @@ from typing import TYPE_CHECKING, Callable
 from jarvis.commands import CommandContext, CommandRegistry, Outcome
 from jarvis.contracts import Listener
 from jarvis.services.conversation_session import ConversationSession
-from jarvis.services.stark_personality import TONY_STARK_GREETINGS, WAKE_PROMPT, WAKE_RESPONSES, greeting_for
+from jarvis.services.stark_personality import (
+    FIRST_WAKE_RESPONSE,
+    SUBSEQUENT_WAKE_RESPONSES,
+    TONY_STARK_GREETINGS,
+    greeting_for,
+)
+from jarvis.services.telemetry_recorder import async_persist_user_message, record_initial_telemetry
 from jarvis.services.telemetry_state_machine import AssistantState, GLOBAL_STATE_MACHINE
+from jarvis.services.voice_pipeline import RobustVoicePipeline
 from jarvis.services.wake_feedback import WakeFeedback
 from jarvis.speech.listener import MicrophoneError
 from jarvis.speech.transcriber import unpack_transcription
@@ -25,25 +32,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 CLOSE_REPLY = "Às suas ordens, senhor. Conversa encerrada."
-
-
-class RobustVoicePipeline:
-    """Pipeline de voz blindado contra erros de tupla, garantindo resposta em 100% das chamadas a 'Jarvis'."""
-
-    def __init__(self, assistant: Assistant) -> None:
-        self.assistant = assistant
-
-    @staticmethod
-    def unpack_transcription(raw_result: object) -> tuple[str, str]:
-        return unpack_transcription(raw_result)
-
-    def on_audio_captured(self, raw_transcription_result: object) -> Outcome:
-        text, _ = self.unpack_transcription(raw_transcription_result)
-        return self.assistant.handle_phrase(text) if text else Outcome.CONTINUE
+STOP_WORDS = ("jarvis pare", "pare", "parar", "para", "silencio", "silêncio", "cala a boca", "para de falar", "chega", "cancela")
 
 
 class Assistant:
-    """Escuta 'Jarvis', responde com latência zero de banco e mantém Ciclo de Paciência de 10s."""
+    """Escuta 'Jarvis', atende com estilo descontraído de amigo, suporta parada imediata e boas-vindas."""
 
     def __init__(
         self,
@@ -70,6 +63,7 @@ class Assistant:
         self._terminal, self._clock, self._choose = terminal, clock, choose
         self._feedback = feedback or WakeFeedback(sounds=sounds)
         self._last_mode: bool | None = None
+        self._wake_count = 0
         self.pipeline = RobustVoicePipeline(self)
 
     def introduce(self) -> None:
@@ -81,73 +75,43 @@ class Assistant:
                 getattr(self._wake_listener, "sample_rate", 16000),
                 getattr(self._wake_listener, "_device_index", None),
             )
-        if self._ctx.memory and hasattr(self._ctx.memory, "record_telemetry_snapshot"):
-            threading.Thread(target=self._record_initial_telemetry, name="telemetry-init-async", daemon=True).start()
+        threading.Thread(target=record_initial_telemetry, args=(self._ctx.memory,), daemon=True).start()
 
-        greeting = greeting_for(self._clock().hour)
-        intro_text = self._choose(TONY_STARK_GREETINGS).format(greeting=greeting, user=self._user_name)
+        if self._user_name.strip().lower() == "ken":
+            intro_text = f"Bem-vindo, {self._user_name}."
+        else:
+            greeting = greeting_for(self._clock().hour)
+            intro_text = self._choose(TONY_STARK_GREETINGS).format(greeting=greeting, user=self._user_name)
         print(f"\n[CMD-JARVIS] 🤖 Saudação Inicial: \"{intro_text}\"", flush=True)
         self._ctx.view.show_status(intro_text)
         if hasattr(self._ctx.view, "append_chat"):
             self._ctx.view.append_chat("assistant", intro_text)
-        t_intro = threading.Thread(target=self._ctx.speaker.say, args=(intro_text,), daemon=True)
-        t_intro.start()
-        t_intro.join(timeout=0.05)
+        threading.Thread(target=self._ctx.speaker.say, args=(intro_text,), daemon=True).start()
 
-    def _record_initial_telemetry(self) -> None:
-        try:
-            snap = self._ctx.memory.record_telemetry_snapshot()  # type: ignore[union-attr]
-            print(f"[TELEMETRIA-SQLITE] 📊 RAM: {snap.get('ram_used_gb')}GB usada | Disco C: {snap.get('disk_free_gb')}GB livre", flush=True)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Telemetria inicial indisponível: %s", exc)
-
-    def _async_persist_user_message(self, text: str) -> None:
-        from jarvis.commands.privacy_commands import is_private_mode
-        from jarvis.services.rolling_transcript import GLOBAL_TRANSCRIPT
-
-        if is_private_mode():
-            return
-        GLOBAL_TRANSCRIPT.add_turn("user", text)
-        if self._ctx.memory:
-            if hasattr(self._ctx.memory, "record_message_async"):
-                self._ctx.memory.record_message_async("user", text)
-            else:
-                self._ctx.memory.record_message("user", text)
-        try:
-            if hasattr(self._ctx.messages, "save_async"):
-                self._ctx.messages.save_async(text)  # type: ignore[attr-defined]
-            else:
-                self._ctx.messages.save(text)
-        except Exception as exc:
-            logger.warning("Aviso ao salvar transcrição: %s", exc)
-
-    def _on_speech_finished(self) -> None:
+    def stop(self) -> None:
+        """Interrompe a fala atual imediatamente e encerra qualquer diálogo."""
+        if hasattr(self._ctx.speaker, "stop"):
+            try:
+                self._ctx.speaker.stop()
+            except Exception:
+                pass
         self._session.close_dialogue()
-        GLOBAL_STATE_MACHINE.transition_to(AssistantState.LISTENING, "standby_wake_word")
-        self._ctx.view.show_status("EM ESPERA // DIGA \"JARVIS\" PARA ATIVAR")
-
-    def _execute_command_or_compound(self, command_text: str) -> Outcome:
-        GLOBAL_STATE_MACHINE.transition_to(AssistantState.PROCESSING, "executing_command")
-        outcome = Outcome.CONTINUE
-        for sub_cmd in split_compound_commands(command_text):
-            outcome = self._registry.dispatch(self._ctx, sub_cmd)
-            if outcome is Outcome.SHUTDOWN:
-                break
-        if self._sounds and outcome is Outcome.CONTINUE:
-            self._sounds.play_ping()
-        return outcome
+        self._ctx.view.show_status("PARADO // SILENCIANDO")
+        self._feedback.sync(dialogue_active=False)
 
     def handle_phrase(self, phrase: str | tuple[str, str]) -> Outcome:
-        """Processa a fala com desempacotamento seguro, conversa ao vivo e Ciclo de Paciência."""
         raw_text, _ = unpack_transcription(phrase)
         if not raw_text:
+            return Outcome.CONTINUE
+
+        clean_norm = normalize(raw_text)
+        if any(clean_norm == s for s in STOP_WORDS):
+            self.stop()
             return Outcome.CONTINUE
 
         corrected = self._corrector.correct(raw_text) if self._corrector else raw_text
         is_wake, inline_cmd = extract_wake_and_command(corrected, self._wake_word)
         in_patience = self._session.should_listen_without_wake_word()
-        state = GLOBAL_STATE_MACHINE.current_state.value
-        print(f"[DEBUG VOZ] Ouvi: '{corrected}' | WakeDetected: {is_wake} | Estado: {state} | Paciência: {in_patience}", flush=True)
 
         if self._strict_wake and not is_wake and not in_patience:
             self._feedback.ignored_in_standby(corrected)
@@ -156,19 +120,20 @@ class Assistant:
         if hasattr(self._ctx.view, "append_chat"):
             self._ctx.view.append_chat("user", corrected)
 
-        threading.Thread(target=self._async_persist_user_message, args=(corrected,), name="user-msg-async", daemon=True).start()
+        threading.Thread(target=async_persist_user_message, args=(self._ctx, corrected), daemon=True).start()
 
         if self._session.is_close_phrase(corrected):
-            self._session.close_dialogue()
+            self.stop()
             self._ctx.reply(CLOSE_REPLY)
             self._session.close_dialogue()
-            self._feedback.sync(dialogue_active=False)
             return Outcome.CONTINUE
 
         if is_wake and not inline_cmd:
+            self._wake_count += 1
             self._feedback.wake_heard(corrected)
             self._session.start_dialogue(awaiting_answer=True)
-            self._ctx.reply(self._choose(WAKE_RESPONSES) if WAKE_RESPONSES else WAKE_PROMPT)
+            wake_reply = FIRST_WAKE_RESPONSE if self._wake_count == 1 else self._choose(SUBSEQUENT_WAKE_RESPONSES)
+            self._ctx.reply(wake_reply)
             self._session.start_dialogue(awaiting_answer=True)
             self._session.activate_patience_window()
             self._feedback.dialogue_open()
@@ -178,13 +143,22 @@ class Assistant:
             self._feedback.wake_heard(corrected)
         cmd_text = inline_cmd if (is_wake and inline_cmd) else corrected
         resolved_cmd = self._session.resolve_utterance_with_pending(cmd_text)
-        outcome = self._execute_command_or_compound(resolved_cmd)
+        GLOBAL_STATE_MACHINE.transition_to(AssistantState.PROCESSING, "executing_command")
+        outcome = Outcome.CONTINUE
+        for sub_cmd in split_compound_commands(resolved_cmd):
+            outcome = self._registry.dispatch(self._ctx, sub_cmd)
+            if outcome is Outcome.SHUTDOWN:
+                break
+        if self._sounds and outcome is Outcome.CONTINUE:
+            self._sounds.play_ping()
 
         if self._session.get_pending_intent() is not None or self._session.is_awaiting_answer():
             self._session.activate_patience_window()
             self._feedback.dialogue_open()
         else:
-            self._on_speech_finished()
+            self._session.close_dialogue()
+            GLOBAL_STATE_MACHINE.transition_to(AssistantState.LISTENING, "standby_wake_word")
+            self._ctx.view.show_status("EM ESPERA // DIGA \"JARVIS\" PARA ATIVAR")
             self._feedback.sync(dialogue_active=False)
         return outcome
 

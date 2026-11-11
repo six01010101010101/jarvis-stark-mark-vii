@@ -20,6 +20,10 @@ class Speaker(Protocol):
         """Fala o texto e bloqueia até terminar."""
         ...
 
+    def stop(self) -> None:
+        """Interrompe a fala imediatamente."""
+        ...
+
     def set_voice(self, profile: str) -> bool:
         """Alterna a voz ativa (ex: 'male' / 'female')."""
         ...

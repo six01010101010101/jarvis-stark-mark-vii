@@ -47,22 +47,26 @@ class JarvisApplication:
         self._settings = settings
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._speaker = None
-        self._listener: GoogleSpeechListener | None = None
-        self._session: ConversationSession | None = None
-        self._gemini: GeminiAnswerService | None = None
-        self._assistant: Assistant | None = None
+        self._speaker, self._listener, self._session = None, None, None
+        self._gemini, self._assistant = None, None
         self._window = JarvisWindow(
-            root,
-            on_start=self.start,
-            on_voice_change=self._handle_voice_change,
-            on_device_selected=self._handle_device_change,
-            on_sensitivity_change=self._handle_sensitivity_change,
-            on_patience_change=self._handle_patience_change,
-            on_language_change=self._handle_language_change,
-            on_text_command=self._handle_text_command,
+            root, on_start=self.start, on_voice_change=self._handle_voice_change,
+            on_device_selected=self._handle_device_change, on_sensitivity_change=self._handle_sensitivity_change,
+            on_patience_change=self._handle_patience_change, on_language_change=self._handle_language_change,
+            on_text_command=self._handle_text_command, on_interrupt=self._handle_interrupt,
         )
         root.protocol("WM_DELETE_WINDOW", lambda: self._close(root))
+
+    def _handle_interrupt(self) -> None:
+        if self._speaker and hasattr(self._speaker, "stop"):
+            try:
+                self._speaker.stop()
+            except Exception:
+                pass
+        if self._session and hasattr(self._session, "close_dialogue"):
+            self._session.close_dialogue()
+        if self._assistant and hasattr(self._assistant, "stop"):
+            self._assistant.stop()
 
     def _handle_text_command(self, text: str) -> None:
         if not self._assistant:
@@ -108,7 +112,6 @@ class JarvisApplication:
     def _run_assistant(self) -> None:
         settings = self._settings
         try:
-            # Garante que o Jarvis NUNCA inicie sozinho junto com o Windows
             disable_autostart()
             sync_project_async()
 
@@ -137,39 +140,21 @@ class JarvisApplication:
             cognitive = CognitiveEngine(gemini, artifact_repo)
 
             self._listener = GoogleSpeechListener(
-                language=settings.language,
-                is_speaking=lambda: self._window.is_speaking,
-                on_volume=self._window.update_mic_level,
-                on_status=self._window.show_status,
-                on_language_detected=self._apply_detected_language,
-                terminal=terminal,
-                gemini=gemini,
+                language=settings.language, is_speaking=lambda: self._window.is_speaking,
+                on_volume=self._window.update_mic_level, on_status=self._window.show_status,
+                on_language_detected=self._apply_detected_language, on_interrupt=self._handle_interrupt,
+                terminal=terminal, gemini=gemini,
             )
             ctx = CommandContext(
-                speaker=self._speaker,
-                listener=self._listener,
-                view=self._window,
-                answers=gemini,
-                messages=TextFileMessageStore(settings.transcription_file),
-                launcher=WindowsLauncher(),
-                processes=WindowsProcessManager(),
-                memory=memory_repo,
-                artifacts=artifact_repo,
-                cognitive=cognitive,
-                session=session,
+                speaker=self._speaker, listener=self._listener, view=self._window, answers=gemini,
+                messages=TextFileMessageStore(settings.transcription_file), launcher=WindowsLauncher(),
+                processes=WindowsProcessManager(), memory=memory_repo, artifacts=artifact_repo,
+                cognitive=cognitive, session=session,
             )
             self._assistant = Assistant(
-                ctx=ctx,
-                wake_listener=self._listener,
-                registry=build_registry(cache=intent_cache),
-                user_name=settings.user_name,
-                wake_word=settings.wake_word,
-                stop_event=self._stop,
-                corrector=corrector,
-                sounds=sounds,
-                session=session,
-                terminal=terminal,
-                feedback=feedback,
+                ctx=ctx, wake_listener=self._listener, registry=build_registry(cache=intent_cache),
+                user_name=settings.user_name, wake_word=settings.wake_word, stop_event=self._stop,
+                corrector=corrector, sounds=sounds, session=session, terminal=terminal, feedback=feedback,
             )
             self._assistant.run()
         except Exception as exc:
@@ -194,7 +179,7 @@ def main() -> None:
             pass
     try:
         _SINGLE_INSTANCE_MUTEX = ctypes.windll.kernel32.CreateMutexW(None, False, "JarvisStarkMarkVII_SingleInstance")
-        if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        if ctypes.windll.kernel32.GetLastError() == 183:
             raise SystemExit(0)
     except SystemExit:
         raise

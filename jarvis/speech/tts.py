@@ -28,8 +28,23 @@ class NativeWindowsSpeaker(Speaker):
         self._voice: object = None
         self._pyttsx_engine: object = None
         self._queue: queue.Queue[tuple[str, Callable[[], None] | None]] = queue.Queue()
+        self._stop_event = threading.Event()
         self.is_speaking = False
         self._init_voice()
+
+    def stop(self) -> None:
+        """Interrompe a fala nativa do Windows imediatamente."""
+        self._stop_event.set()
+        if self._voice is not None:
+            try:
+                self._voice.Speak("", 2)
+            except Exception:
+                pass
+        if self._pyttsx_engine is not None:
+            try:
+                self._pyttsx_engine.stop()
+            except Exception:
+                pass
 
     def _init_voice(self) -> None:
         try:

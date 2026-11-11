@@ -16,6 +16,9 @@ class FakeSpeaker:
     def say(self, text: str) -> None:
         self.spoken.append(text)
 
+    def stop(self) -> None:
+        pass
+
     def set_voice(self, profile: str) -> bool:
         self.current_voice = profile
         return True
