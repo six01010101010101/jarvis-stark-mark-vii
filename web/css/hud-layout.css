@@ -1,0 +1,193 @@
+/* J.A.R.V.I.S. Mark VII // Grid Layout & Glassmorphism Panels */
+
+.hud-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+}
+
+/* Top Header */
+.hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--hud-bg-panel);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  box-shadow: var(--glow-cyan);
+  position: relative;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-title {
+  font-family: var(--font-hud);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--hud-cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.brand-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--hud-amber);
+  background: rgba(255, 183, 3, 0.12);
+  border: 1px solid rgba(255, 183, 3, 0.4);
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+  letter-spacing: 1px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Main Dashboard Grid */
+.hud-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 380px;
+  gap: 1rem;
+  flex: 1;
+}
+
+@media (max-width: 1200px) {
+  .hud-grid {
+    grid-template-columns: 280px 1fr;
+  }
+  .hud-right-panel {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 800px) {
+  .hud-grid {
+    grid-template-columns: 1fr;
+  }
+  .hud-right-panel {
+    grid-column: span 1;
+  }
+}
+
+/* Generic Tech Panel (Glassmorphic + FUI Corner Brackets) */
+.hud-panel {
+  background: var(--hud-bg-panel);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Cantoneiras decorativas FUI (Style 51) */
+.hud-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--hud-cyan);
+  border-left: 2px solid var(--hud-cyan);
+}
+
+.hud-panel::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid var(--hud-cyan);
+  border-right: 2px solid var(--hud-cyan);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hud-cyan-dim);
+  padding-bottom: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  font-family: var(--font-hud);
+  font-size: 0.85rem;
+  letter-spacing: 1.5px;
+  color: var(--hud-cyan);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.panel-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--hud-green);
+  border-radius: 50%;
+  box-shadow: var(--glow-green);
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Center Column (Hologram Core) */
+.hud-center-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.core-canvas-container {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visualizer-container {
+  width: 100%;
+  height: 70px;
+  background: rgba(0, 240, 255, 0.03);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  overflow: hidden;
+}
+
+/* Bottom Quick Tactical Action Bar */
+.hud-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.2rem;
+  background: var(--hud-bg-panel);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--hud-text-muted);
+}

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>J.A.R.V.I.S. // STARK INDUSTRIES MARK VII</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/hud-tokens.css">
+  <link rel="stylesheet" href="/css/hud-layout.css">
+  <link rel="stylesheet" href="/css/hud-components.css">
+</head>
+<body>
+  <div class="hud-app">
+    <!-- Top HUD Header -->
+    <header class="hud-header">
+      <div class="brand-section">
+        <svg width="34" height="34" viewBox="0 0 100 100" fill="none">
+          <polygon points="30,8 50,5 70,8 85,25 85,55 78,78 65,92 50,95 35,92 22,78 15,55 15,25" stroke="#00F0FF" stroke-width="3" fill="rgba(0,240,255,0.08)" />
+          <polygon points="28,25 50,22 72,25 78,48 68,68 58,74 42,74 32,68 22,48" stroke="#007799" stroke-width="2" />
+          <polygon points="30,42 44,45 43,49 32,47" fill="#00F0FF" />
+          <polygon points="56,45 70,42 68,47 57,49" fill="#00F0FF" />
+        </svg>
+        <div>
+          <h1 class="brand-title">J.A.R.V.I.S.</h1>
+          <span class="brand-badge">MARK VII // STARK DEFENSE OS</span>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="vpn-pill" id="vpn-status-tag">🛡️ PROTON VPN: PRONTO</div>
+        <button class="hud-btn" id="btn-theme-toggle">🌓 TEMA</button>
+      </div>
+    </header>
+
+    <!-- Main Tactical HUD Grid -->
+    <main class="hud-grid">
+      <!-- Left Column: Telemetry & Hardware State -->
+      <section class="hud-panel">
+        <div class="panel-header">
+          <span class="panel-title"><span class="panel-status-dot"></span> TELEMETRIA LOCAL</span>
+          <span class="brand-badge">RTX 4060 GPU</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-header"><span>USO DE PROCESSAMENTO (CPU)</span><span class="metric-val" id="metric-cpu">0%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-cpu" style="width: 15%;"></div></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header"><span>MEMÓRIA RAM OPERACIONAL</span><span class="metric-val" id="metric-ram">0GB</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-ram" style="width: 35%;"></div></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header"><span>ARMAZENAMENTO PRINCIPAL</span><span class="metric-val" id="metric-disk">Verificando...</span></div>
+          </div>
+        </div>
+        <div class="panel-header" style="margin-top: 1.25rem;">
+          <span class="panel-title">🧠 MEMÓRIA & FATOS APRENDIDOS</span>
+        </div>
+        <div id="learned-facts-list" style="flex: 1; overflow-y: auto; max-height: 220px;">
+          <div class="metric-card" style="font-size: 0.78rem;">Carregando memórias centrais...</div>
+        </div>
+      </section>
+
+      <!-- Center Column: Holographic Arc Reactor & Visualizer -->
+      <section class="hud-panel hud-center-panel">
+        <div class="panel-header" style="width: 100%;">
+          <span class="panel-title"><span class="panel-status-dot"></span> NÚCLEO COGNITIVO // REATOR ARC 3D</span>
+          <span class="brand-badge">SISTEMAS ONLINE</span>
+        </div>
+        <div class="core-canvas-container">
+          <canvas id="arc-canvas"></canvas>
+        </div>
+        <div class="visualizer-container">
+          <canvas id="visualizer-canvas"></canvas>
+        </div>
+        <div class="quick-chips">
+          <button class="chip-btn" data-query="Jarvis, quais são minhas metas?">🎯 MINHAS METAS</button>
+          <button class="chip-btn" data-query="Jarvis, como está a GPU e a telemetria?">📊 TELEMETRIA</button>
+          <button class="chip-btn" data-query="Jarvis, quem é o Jarvis?">🤖 AUTO-CONSCIÊNCIA</button>
+          <button class="chip-btn" data-query="Jarvis, poe no yt som relaxante">🎵 YOUTUBE</button>
+        </div>
+      </section>
+
+      <!-- Right Column: Interactive Chat & Speech Console -->
+      <section class="hud-panel hud-right-panel">
+        <div class="panel-header">
+          <span class="panel-title">💬 CONVERSAÇÃO AO VIVO // TERMINAL</span>
+          <span class="brand-badge">VOZ & TEXTO</span>
+        </div>
+        <div class="chat-container">
+          <div class="chat-history" id="chat-history">
+            <div class="chat-bubble assistant">
+              <strong>J.A.R.V.I.S.:</strong> Bem-vindo ao console web Mark VII, senhor. Todos os subsistemas e a GPU estão sincronizados. Em que posso auxiliá-lo?
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Comando ou reflexão..." autocomplete="off">
+            <button class="hud-btn" id="btn-mic" title="Comando por Voz">🎙️</button>
+            <button class="hud-btn" id="btn-send">ENVIAR</button>
+            <button class="hud-btn hud-btn-stop" id="btn-stop" title="Interromper Fala">⛔</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Status Bar -->
+    <footer class="hud-footer-bar">
+      <span>SERVIÇOS DE REDE: REST API PORT 8765 // MENTE COLETIVA</span>
+      <span id="clock-display">00:00:00</span>
+    </footer>
+  </div>
+
+  <script type="module">
+    import { JarvisApiClient } from '/js/api-client.js';
+    import { ArcHologram } from '/js/arc-hologram.js';
+    import { AudioVisualizer } from '/js/audio-visualizer.js';
+    import { TelemetryWidget } from '/js/telemetry-widget.js';
+    import { ChatController } from '/js/chat-controller.js';
+
+    const api = new JarvisApiClient();
+    const hologram = new ArcHologram('arc-canvas');
+    const visualizer = new AudioVisualizer('visualizer-canvas');
+    new TelemetryWidget(api);
+    new ChatController(api, hologram, visualizer);
+
+    // Clock
+    setInterval(() => {
+      const clock = document.getElementById('clock-display');
+      if (clock) clock.textContent = new Date().toLocaleTimeString('pt-BR');
+    }, 1000);
+
+    // Theme toggle
+    const themeBtn = document.getElementById('btn-theme-toggle');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const root = document.documentElement;
+        const current = root.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+      });
+    }
+  </script>
+</body>
+</html>

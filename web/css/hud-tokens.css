@@ -1,0 +1,80 @@
+/* J.A.R.V.I.S. Mark VII // Design Tokens (UI/UX Pro Max - Style 51 FUI / HUD) */
+:root {
+  --hud-cyan: #00f0ff;
+  --hud-cyan-dim: rgba(0, 240, 255, 0.35);
+  --hud-cyan-faint: rgba(0, 240, 255, 0.08);
+  --hud-blue: #0080ff;
+  --hud-blue-dim: rgba(0, 128, 255, 0.25);
+  --hud-amber: #ffb703;
+  --hud-green: #00ff88;
+  --hud-red: #ff3366;
+  --hud-bg-core: #03070d;
+  --hud-bg-panel: rgba(6, 14, 26, 0.78);
+  --hud-bg-glass: rgba(8, 20, 36, 0.65);
+  --hud-text-primary: #e0f7fa;
+  --hud-text-muted: #648a9f;
+  --hud-border-width: 1px;
+  --hud-radius: 4px;
+  --font-hud: "Orbitron", -apple-system, sans-serif;
+  --font-tech: "Rajdhani", sans-serif;
+  --font-mono: "Share Tech Mono", monospace;
+  --glow-cyan: 0 0 8px rgba(0, 240, 255, 0.55);
+  --glow-strong: 0 0 18px rgba(0, 240, 255, 0.85);
+  --glow-amber: 0 0 10px rgba(255, 183, 3, 0.6);
+  --glow-green: 0 0 10px rgba(0, 255, 136, 0.6);
+  --glass-blur: blur(12px);
+  --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="light"] {
+    --hud-bg-core: #ebf3f7;
+    --hud-bg-panel: rgba(255, 255, 255, 0.85);
+    --hud-bg-glass: rgba(240, 246, 250, 0.75);
+    --hud-text-primary: #0a2540;
+    --hud-text-muted: #53758e;
+    --hud-cyan: #007799;
+    --hud-cyan-dim: rgba(0, 119, 153, 0.35);
+    --hud-cyan-faint: rgba(0, 119, 153, 0.08);
+    --glow-cyan: 0 0 6px rgba(0, 119, 153, 0.4);
+    --glow-strong: 0 0 12px rgba(0, 119, 153, 0.55);
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--hud-bg-core);
+  color: var(--hud-text-primary);
+  font-family: var(--font-tech);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  background-image:
+    radial-gradient(circle at 50% 20%, rgba(0, 240, 255, 0.06) 0%, transparent 60%),
+    linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* Efeito de scanline sutil FUI */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12) 0px,
+    rgba(0, 0, 0, 0.12) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  z-index: 999;
+  opacity: 0.45;
+}

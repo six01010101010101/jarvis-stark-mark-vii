@@ -1,0 +1,191 @@
+/* J.A.R.V.I.S. Mark VII // Component Styles (Gauges, Buttons, Chat, Telemetry) */
+
+/* Telemetry Circular & Progress Meters */
+.metrics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.metric-card {
+  background: var(--hud-bg-glass);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  padding: 0.75rem 0.9rem;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--hud-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.metric-val {
+  font-family: var(--font-hud);
+  font-size: 0.88rem;
+  color: var(--hud-cyan);
+  font-weight: 600;
+}
+
+.metric-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 240, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.metric-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--hud-blue), var(--hud-cyan));
+  box-shadow: var(--glow-cyan);
+  transition: width var(--transition-smooth);
+}
+
+/* VPN & System Status Pill */
+.vpn-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid var(--hud-green);
+  border-radius: var(--hud-radius);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--hud-green);
+}
+
+.vpn-pill.disconnected {
+  background: rgba(255, 51, 102, 0.08);
+  border-color: var(--hud-red);
+  color: var(--hud-red);
+}
+
+/* Tactical HUD Buttons */
+.hud-btn {
+  background: var(--hud-cyan-faint);
+  border: 1px solid var(--hud-cyan-dim);
+  color: var(--hud-cyan);
+  font-family: var(--font-hud);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--hud-radius);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all var(--transition-fast);
+}
+
+.hud-btn:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--hud-cyan);
+  box-shadow: var(--glow-cyan);
+  transform: translateY(-1px);
+}
+
+.hud-btn-stop {
+  background: rgba(255, 51, 102, 0.15);
+  border-color: var(--hud-red);
+  color: var(--hud-red);
+}
+
+.hud-btn-stop:hover {
+  background: rgba(255, 51, 102, 0.3);
+  box-shadow: 0 0 10px rgba(255, 51, 102, 0.7);
+}
+
+/* Chat Console Section */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  gap: 0.75rem;
+}
+
+.chat-history {
+  flex: 1;
+  min-height: 280px;
+  max-height: 480px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-right: 0.4rem;
+}
+
+.chat-bubble {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--hud-radius);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  position: relative;
+  max-width: 90%;
+}
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+  background: rgba(0, 240, 255, 0.08);
+  border-left: 2px solid var(--hud-cyan);
+  color: var(--hud-text-primary);
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background: rgba(0, 255, 136, 0.08);
+  border-right: 2px solid var(--hud-green);
+  color: #d8ffe8;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input {
+  flex: 1;
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid var(--hud-cyan-dim);
+  border-radius: var(--hud-radius);
+  padding: 0.6rem 0.8rem;
+  color: var(--hud-text-primary);
+  font-family: var(--font-tech);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.chat-input:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Quick Action Chips */
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.chip-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  color: var(--hud-text-muted);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.chip-btn:hover {
+  color: var(--hud-cyan);
+  border-color: var(--hud-cyan);
+}
