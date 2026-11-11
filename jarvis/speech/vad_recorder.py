@@ -90,26 +90,18 @@ class AdaptiveVadRecorder:
         self.pause_threshold = self.silence_duration
 
     def record_phrase(
-        self,
-        stream: object,
-        sample_rate: int,
-        sample_width: int,
-        chunk_size: int,
-        is_speaking: Callable[[], bool] | None = None,
-        stop_event: object | None = None,
-        reopen_event: object | None = None,
-        terminal: object | None = None,
+        self, stream: object, sample_rate: int, sample_width: int, chunk_size: int,
+        is_speaking: Callable[[], bool] | None = None, stop_event: object | None = None,
+        reopen_event: object | None = None, terminal: object | None = None,
     ) -> tuple[sr.AudioData | None, str | None, float, int]:
         sec_per_chunk = float(chunk_size) / float(max(sample_rate, 8000))
         short_pause = max(5, int(0.58 / sec_per_chunk))
         breath_pause = max(short_pause, int(self.silence_duration / sec_per_chunk))
         min_human_chunks = max(3, int((MIN_HUMAN_SPEECH_MS / 1000.0) / sec_per_chunk))
         max_phrase_chunks = max(30, int(9.0 / sec_per_chunk))
-
         pre_roll: deque[bytes] = deque(maxlen=max(4, int(0.24 / sec_per_chunk)))
         recorded: list[bytes] = []
-        speaking_started = False
-        human_chunks, silence_chunks, zero_chunks, peak_rms = 0, 0, 0, 0
+        speaking_started, human_chunks, silence_chunks, zero_chunks, peak_rms = False, 0, 0, 0, 0
 
         while True:
             if stop_event and getattr(stop_event, "is_set", lambda: False)():
@@ -126,7 +118,6 @@ class AdaptiveVadRecorder:
             if not raw_buf:
                 time.sleep(0.02)
                 continue
-
             buf = apply_bandpass_85_3400(raw_buf, sample_rate=sample_rate)
             raw_rms = compute_rms(buf)
             zero_chunks = zero_chunks + 1 if raw_rms == 0 else 0

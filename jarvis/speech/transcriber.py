@@ -107,12 +107,8 @@ class MultiEngineTranscriber:
     """Converte áudio humano validado em texto com suporte Poliglota e GPU CUDA."""
 
     def __init__(
-        self,
-        recognizer: sr.Recognizer,
-        language: str = "pt-BR",
-        gemini: object | None = None,
-        device: str = "cuda",
-        compute_type: str = "float16",
+        self, recognizer: sr.Recognizer, language: str = "pt-BR", gemini: object | None = None,
+        device: str = "cuda", compute_type: str = "float16",
     ) -> None:
         self._recognizer, self._language, self._gemini = recognizer, language, gemini
         self.device, self.compute_type = device, compute_type

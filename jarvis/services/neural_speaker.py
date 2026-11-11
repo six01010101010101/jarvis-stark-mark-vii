@@ -22,24 +22,16 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "jarvis_sounds" / "tts_cache"
 DEFAULT_MALE_VOICE = "pt-BR-AntonioNeural"
 DEFAULT_FEMALE_VOICE = "pt-BR-FranciscaNeural"
-GPU_DEVICE = "cuda"
-GPU_COMPUTE_TYPE = "float16"
+GPU_DEVICE, GPU_COMPUTE_TYPE = "cuda", "float16"
 
 LANGUAGE_VOICES: dict[str, str] = {
-    "pt": "pt-BR-AntonioNeural",
-    "en": "en-GB-RyanNeural",
-    "es": "es-ES-AlvaroNeural",
-    "ja": "ja-JP-KeitaNeural",
-    "fr": "fr-FR-HenriNeural",
-    "de": "de-DE-ConradNeural",
-    "it": "it-IT-DiegoNeural",
+    "pt": "pt-BR-AntonioNeural", "en": "en-GB-RyanNeural", "es": "es-ES-AlvaroNeural",
+    "ja": "ja-JP-KeitaNeural", "fr": "fr-FR-HenriNeural", "de": "de-DE-ConradNeural", "it": "it-IT-DiegoNeural",
 }
 
 THINKING_FILLERS = (
-    "Analisando os dados, senhor...",
-    "Consultando a rede, só um instante...",
-    "Processando os parâmetros, senhor.",
-    "Um momento enquanto processo isso...",
+    "Analisando os dados, senhor...", "Consultando a rede, só um instante...",
+    "Processando os parâmetros, senhor.", "Um momento enquanto processo isso...",
 )
 
 
@@ -49,8 +41,7 @@ def split_into_chunks(text: str) -> list[str]:
 
 def _pump_win32_messages() -> None:
     try:
-        user32 = ctypes.windll.user32
-        msg = ctypes.wintypes.MSG()
+        user32, msg = ctypes.windll.user32, ctypes.wintypes.MSG()
         while user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 1):
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
@@ -64,8 +55,8 @@ def _play_mp3_native(mp3_path: Path, max_wait: float = 16.0) -> bool:
     est_duration = max(0.7, min((mp3_path.stat().st_size / 5800.0) + 0.4, max_wait))
     try:
         import comtypes
-        comtypes.CoInitialize()
         import comtypes.client
+        comtypes.CoInitialize()
         wmp = comtypes.client.CreateObject("WMPlayer.OCX")
         wmp.settings.volume = 100
         media = wmp.newMedia(str(mp3_path.resolve()))
@@ -78,11 +69,9 @@ def _play_mp3_native(mp3_path: Path, max_wait: float = 16.0) -> bool:
                 t0 = time.time()
                 while time.time() - t0 < est_duration:
                     _pump_win32_messages()
-                    if wmp.playState in (1, 8):
-                        break
                     dur = float(getattr(media, "duration", 0.0) or 0.0)
                     pos = float(getattr(wmp.controls, "currentPosition", 0.0) or 0.0)
-                    if dur > 0.2 and pos >= dur - 0.06:
+                    if wmp.playState in (1, 8) or (dur > 0.2 and pos >= dur - 0.06):
                         break
                     time.sleep(0.025)
                 wmp.controls.stop()
@@ -172,9 +161,7 @@ class NeuralSpeaker(Speaker):
             return f"Neural Jarvis ({DEFAULT_MALE_VOICE})"
         if self._voice == "en-GB-RyanNeural":
             return "Neural Cinema (en-GB-RyanNeural / Paul Bettany)"
-        if self._voice == DEFAULT_FEMALE_VOICE:
-            return f"Neural Feminina ({DEFAULT_FEMALE_VOICE})"
-        return f"Neural Poliglota ({self._voice})"
+        return f"Neural Feminina ({DEFAULT_FEMALE_VOICE})" if self._voice == DEFAULT_FEMALE_VOICE else f"Neural Poliglota ({self._voice})"
 
     def _get_cache_path(self, text: str) -> Path:
         digest = hashlib.md5(f"{self._voice}_{text.strip()}".encode("utf-8")).hexdigest()[:16]
@@ -183,11 +170,9 @@ class NeuralSpeaker(Speaker):
     def _synthesize_edge(self, text: str, out_path: Path) -> bool:
         if out_path.exists() and out_path.stat().st_size > 0:
             return True
-
         async def _run() -> None:
             import edge_tts
             await edge_tts.Communicate(text, self._voice, rate="-2%").save(str(out_path))
-
         try:
             loop = asyncio.new_event_loop()
             try:
@@ -211,11 +196,7 @@ class NeuralSpeaker(Speaker):
         if not chunks:
             return
         if len(chunks) > 1:
-            threading.Thread(
-                target=lambda rest: [self._synthesize_edge(c, self._get_cache_path(c)) for c in rest],
-                args=(chunks[1:],),
-                daemon=True,
-            ).start()
+            threading.Thread(target=lambda r: [self._synthesize_edge(c, self._get_cache_path(c)) for c in r], args=(chunks[1:],), daemon=True).start()
         with self._lock:
             self.is_speaking = True
             self._on_start()
