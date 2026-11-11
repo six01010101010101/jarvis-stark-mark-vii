@@ -17,6 +17,16 @@ def _stop_speech(ctx: CommandContext, _utterance: str) -> Outcome:
         except Exception as exc:
             logger.debug("Erro ao parar speaker: %s", exc)
 
+    if ctx.session and hasattr(ctx.session, "get_interrupted_speech") and not ctx.session.get_interrupted_speech():
+        try:
+            from jarvis.services.rolling_transcript import GLOBAL_TRANSCRIPT
+            turns = GLOBAL_TRANSCRIPT.get_recent_turns(count=2)
+            last_assistant = next((t.text for t in reversed(turns) if t.role == "assistant"), "")
+            if last_assistant and hasattr(ctx.session, "set_interrupted_speech"):
+                ctx.session.set_interrupted_speech(last_assistant)
+        except Exception:
+            pass
+
     if ctx.session and hasattr(ctx.session, "close_dialogue"):
         ctx.session.close_dialogue()
 
@@ -30,7 +40,8 @@ def stop_commands() -> list[Command]:
         Command(
             "stop_speech",
             (
-                "jarvis pare", "jarvis para", "pare", "parar", "para de falar",
+                "jarvis pare", "pare jarvis", "stop jarvis", "jarvis stop",
+                "jarvis para", "para jarvis", "pare", "parar", "para de falar",
                 "silencio", "silêncio", "cala a boca", "chega de falar", "cancela conversa", "cancela tudo",
             ),
             _stop_speech,

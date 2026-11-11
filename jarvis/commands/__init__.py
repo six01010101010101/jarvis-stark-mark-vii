@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from jarvis.commands.automation_commands import automation_commands
 from jarvis.commands.cognitive_commands import cognitive_commands
 from jarvis.commands.goal_commands import goal_commands
 from jarvis.commands.info_commands import info_commands
@@ -18,6 +19,7 @@ from jarvis.commands.playlist_commands import playlist_commands
 from jarvis.commands.presence_commands import presence_commands
 from jarvis.commands.privacy_commands import privacy_commands
 from jarvis.commands.registry import Command, CommandContext, CommandRegistry, Outcome
+from jarvis.commands.resume_commands import resume_commands
 from jarvis.commands.screen_commands import screen_commands
 from jarvis.commands.stop_commands import stop_commands
 from jarvis.commands.system_commands import close_commands, system_commands
@@ -38,8 +40,10 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
     registry = CommandRegistry(cache=cache)
     registry.register(
         *stop_commands(),
+        *resume_commands(),
         *close_commands(),
         *user_shortcuts(),
+        *automation_commands(),
         *presence_commands(),
         *machine_commands(),
         *weather_commands(),

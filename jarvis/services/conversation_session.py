@@ -41,6 +41,7 @@ class ConversationSession:
         self._last_activity = 0.0
         self.active_until = 0.0
         self.is_in_patience_cycle = False
+        self._last_interrupted_speech: str | None = None
 
     def set_patience_seconds(self, seconds: float) -> None:
         """Ajusta o tempo do Ciclo de Paciência em tempo real pelo slider da HUD."""
@@ -165,3 +166,18 @@ class ConversationSession:
     def is_close_phrase(self, utterance: str) -> bool:
         norm = normalize(utterance)
         return any(trigger in norm for trigger in self.CLOSE_TRIGGERS)
+
+    def set_interrupted_speech(self, text: str) -> None:
+        """Armazena o texto que estava sendo falado quando o usuário pediu para parar."""
+        with self._lock:
+            self._last_interrupted_speech = text.strip()
+
+    def get_interrupted_speech(self) -> str | None:
+        """Recupera o texto da fala interrompida para retomada posterior."""
+        with self._lock:
+            return self._last_interrupted_speech
+
+    def clear_interrupted_speech(self) -> None:
+        """Limpa o registro de fala interrompida."""
+        with self._lock:
+            self._last_interrupted_speech = None

@@ -10,6 +10,7 @@ from jarvis.repositories.memory_repository import MemoryRepository
 from jarvis.services.collective_prompts import JARVIS_COLLECTIVE_MIND_PROMPT
 from jarvis.services.hivemind_coordinator import HivemindCoordinator
 from jarvis.services.semantic_wake_analyzer import SemanticWakeAnalyzer
+from jarvis.services.web_search_engine import WebSearchEngine
 from jarvis.text_utils import normalize
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class JarvisCollectiveMind:
         self.repo = repo
         self._gemini = gemini_service
         self.hivemind = HivemindCoordinator(repo)
+        self.web_search = WebSearchEngine()
 
     def think_and_reply(self, user_text: str, in_patience_window: bool = False, lang: str = "pt") -> tuple[str, str]:
         """Processa a oração, distingue vocativo de tema e retorna (resposta_inteligente, modo_intencao)."""
@@ -66,9 +68,16 @@ class JarvisCollectiveMind:
         recent_history = self.repo.get_recent_episodic_context(limit=10)
         history_str = "\n".join(f"{'Usuário' if h['role'] == 'user' else 'J.A.R.V.I.S.'}: {h['content']}" for h in recent_history)
 
+        web_block = ""
+        if any(k in q_norm for k in ("pesquise", "pesquisa", "quem", "o que", "quando", "noticia", "historia", "curiosidade", "sobre", "qual", "como", "busca")):
+            web_block = self.web_search.format_search_for_prompt(query)
+            if web_block:
+                web_block = f"{web_block}\n\n"
+
         full_prompt = (
             f"{JARVIS_COLLECTIVE_MIND_PROMPT}\n\n"
             f"[RECALL PROATIVO RELEVANTE (BM25)]:\n{augmented['recalled_prompt_block']}\n\n"
+            f"{web_block}"
             f"[METAS ATIVAS DO USUÁRIO]:\n{augmented['active_goals_block']}\n\n"
             f"[GRAFO DE RELAÇÕES E SUBSISTEMAS]:\n{augmented['graph_prompt_block']}\n\n"
             f"[HISTÓRICO RECENTE DA CONVERSA]:\n{history_str}\n\n"
