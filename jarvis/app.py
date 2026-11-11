@@ -50,6 +50,7 @@ class JarvisApplication:
         self._speaker = None
         self._listener: GoogleSpeechListener | None = None
         self._session: ConversationSession | None = None
+        self._gemini: GeminiAnswerService | None = None
         self._window = JarvisWindow(
             root,
             on_start=self.start,
@@ -57,6 +58,7 @@ class JarvisApplication:
             on_device_selected=self._handle_device_change,
             on_sensitivity_change=self._handle_sensitivity_change,
             on_patience_change=self._handle_patience_change,
+            on_language_change=self._handle_language_change,
         )
         root.protocol("WM_DELETE_WINDOW", lambda: self._close(root))
 
@@ -75,6 +77,18 @@ class JarvisApplication:
     def _handle_patience_change(self, seconds: float) -> None:
         if self._session:
             self._session.set_patience_seconds(seconds)
+
+    def _handle_language_change(self, lang_code: str) -> None:
+        if self._listener and hasattr(self._listener, "set_language"):
+            self._listener.set_language(lang_code)
+        if lang_code != "auto":
+            self._apply_detected_language(lang_code)
+
+    def _apply_detected_language(self, lang_code: str) -> None:
+        if self._gemini and hasattr(self._gemini, "set_language"):
+            self._gemini.set_language(lang_code)
+        if self._speaker and hasattr(self._speaker, "set_language_voice"):
+            self._speaker.set_language_voice(lang_code)
 
     def start(self) -> None:
         """Inicia a thread do assistente (ignorado se já estiver em execução)."""
@@ -116,6 +130,7 @@ class JarvisApplication:
             speaker = self._speaker
 
             gemini = GeminiAnswerService(settings.gemini_api_key, settings.gemini_model)
+            self._gemini = gemini
             cognitive = CognitiveEngine(gemini, artifact_repo)
 
             self._listener = GoogleSpeechListener(
@@ -123,6 +138,7 @@ class JarvisApplication:
                 is_speaking=lambda: self._window.is_speaking,
                 on_volume=self._window.update_mic_level,
                 on_status=self._window.show_status,
+                on_language_detected=self._apply_detected_language,
                 terminal=terminal,
                 gemini=gemini,
             )

@@ -37,12 +37,14 @@ class GoogleSpeechListener:
         is_speaking: Callable[[], bool] | None = None,
         on_volume: Callable[..., None] | None = None,
         on_status: Callable[[str], None] | None = None,
+        on_language_detected: Callable[[str], None] | None = None,
         terminal: object | None = None,
         gemini: object | None = None,
     ) -> None:
         self._language, self._timeout = language, timeout_seconds
         self._is_speaking, self._on_volume = is_speaking, on_volume
         self._on_status, self._terminal, self._gemini = on_status, terminal, gemini
+        self._on_language_detected = on_language_detected
         self._stop_event = threading.Event()
         self._reopen_event = threading.Event()
         self._lock = threading.Lock()
@@ -91,6 +93,10 @@ class GoogleSpeechListener:
     def set_sensitivity(self, value: float) -> None:
         """Altera a sensibilidade do microfone em tempo real."""
         self._vad.set_sensitivity(value)
+
+    def set_language(self, lang_code: str) -> None:
+        """Altera o idioma de reconhecimento ('auto', 'pt', 'en', 'es', 'ja', 'fr', 'de', 'it')."""
+        self._transcriber.set_language_mode(lang_code)
 
     def _capture_loop(self) -> None:
         """Thread dedicada que lê o microfone sem pausas e atualiza o medidor VU em tempo real."""
@@ -167,6 +173,8 @@ class GoogleSpeechListener:
 
             text, engine = self._transcriber.transcribe(audio)
             if text:
+                if self._on_language_detected:
+                    self._on_language_detected(self._transcriber.last_detected_language)
                 self._dispatch_success(text, engine=engine)
                 return text
 

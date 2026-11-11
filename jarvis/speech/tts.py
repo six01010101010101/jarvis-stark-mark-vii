@@ -96,6 +96,10 @@ class NativeWindowsSpeaker(Speaker):
     def get_voice(self) -> str:
         return "Daniel (Masculina)" if self._profile == "male" else "Maria (Feminina)"
 
+    def set_language_voice(self, lang_code: str) -> str:
+        """Compatibilidade Poliglota com motor nativo."""
+        return self.get_voice()
+
     def speak(self, text: str) -> None:
         """Compatibilidade direta com NeuralSpeakerStream."""
         self.say(text)

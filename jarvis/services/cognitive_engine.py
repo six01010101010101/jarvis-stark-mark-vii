@@ -39,11 +39,17 @@ class CognitiveEngine(CognitiveService):
         self._artifacts_dir = artifacts_dir
         self._artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    def process(self, user_text: str, mode: str | None = None) -> str:
-        """Processa uma pergunta rápida ('FAST') ou profunda ('DEEP') usando o AnswerProvider."""
+    def process(self, user_text: str, mode: str | None = None, idioma_detectado: str = "pt-BR") -> str:
+        """Processa uma pergunta rápida ('FAST') ou profunda ('DEEP') mantendo o idioma detectado."""
         resolved_mode = mode or classify_query_complexity(user_text)
-        logger.debug("CognitiveEngine processando consulta em modo %s: '%s'", resolved_mode, user_text)
-        return self._answers.ask(user_text)
+        if hasattr(self._answers, "set_language"):
+            self._answers.set_language(idioma_detectado)  # type: ignore[attr-defined]
+        prompt = (
+            f"Responda SEMPRE no mesmo idioma em que o usuário falou ({idioma_detectado}), "
+            f"mantendo a personalidade do J.A.R.V.I.S.: {user_text}"
+        )
+        logger.debug("CognitiveEngine processando consulta em modo %s (%s): '%s'", resolved_mode, idioma_detectado, user_text)
+        return self._answers.ask(prompt)
 
     def _generate_and_save(
         self,

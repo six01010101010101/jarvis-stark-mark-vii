@@ -39,12 +39,25 @@ def compute_rms(data: bytes) -> int:
         return 0
     try:
         import audioop
-
         return audioop.rms(data, 2)
     except ImportError:
         shorts = struct.unpack(f"<{count}h", data)
-        sum_sq = sum(s * s for s in shorts)
-        return int(math.sqrt(sum_sq / count))
+        return int(math.sqrt(sum(s * s for s in shorts) / count))
+
+
+def apply_bandpass_85_3400(data: bytes, sample_rate: int = SAMPLE_RATE) -> bytes:
+    """Filtro Passa-Banda (85Hz a 3400Hz) para cortar latidos/miados agudos e batidas graves."""
+    if len(data) < 64:
+        return data
+    try:
+        import numpy as np
+        samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+        spec = np.fft.rfft(samples)
+        freqs = np.fft.rfftfreq(len(samples), d=1.0 / float(max(sample_rate, 8000)))
+        filtered = np.fft.irfft(spec * ((freqs >= 85.0) & (freqs <= 3400.0)), n=len(samples))
+        return np.clip(filtered, -32768.0, 32767.0).astype(np.int16).tobytes()
+    except Exception:
+        return data
 
 
 def list_input_devices() -> list[AudioDeviceInfo]:

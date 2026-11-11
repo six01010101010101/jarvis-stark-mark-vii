@@ -1,7 +1,7 @@
 """Tokens visuais e geometria 3D holográfica Tony Stark (Arc Reactor & Iron Man Helmet Mark VII)."""
 
 WINDOW_TITLE = "J.A.R.V.I.S. // STARK INDUSTRIES MARK VII"
-WINDOW_GEOMETRY = "420x740"
+WINDOW_GEOMETRY = "425x815"
 INITIAL_TEXT = "MARK VII // SISTEMAS DEFENSIVOS E IA ONLINE"
 LABEL_WRAP = 370
 
