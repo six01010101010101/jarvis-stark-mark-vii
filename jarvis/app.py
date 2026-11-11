@@ -1,8 +1,10 @@
-"""Composição da aplicação: inicializa dependências, interface e assistente."""
+"""Composição da aplicação: inicializa dependências, interface única (sem duplicação) e assistente."""
 
 from __future__ import annotations
 
+import ctypes
 import logging
+import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox
@@ -15,10 +17,9 @@ from jarvis.database.migrations import run_migrations
 from jarvis.repositories.artifact_repository import ArtifactRepository
 from jarvis.repositories.memory_repository import MemoryRepository
 from jarvis.services.audio_effects import StarkSoundPlayer
-from jarvis.services.autostart import enable_autostart
+from jarvis.services.autostart import disable_autostart
 from jarvis.services.cognitive_engine import CognitiveEngine
 from jarvis.services.conversation_session import ConversationSession
-from jarvis.services.desktop_shortcut import repair_desktop_shortcut
 from jarvis.services.gemini_service import GeminiAnswerService
 from jarvis.services.github_sync import sync_project_async
 from jarvis.services.intent_cache import IntentCache
@@ -28,7 +29,6 @@ from jarvis.services.process_manager import WindowsProcessManager
 from jarvis.services.speech_corrector import SpeechCorrector
 from jarvis.services.supabase_sync import SupabaseSyncService
 from jarvis.services.terminal_bridge import TerminalBridge
-from jarvis.services.vpn_service import VpnDetector
 from jarvis.services.wake_feedback import WakeFeedback
 from jarvis.speech.listener import GoogleSpeechListener
 from jarvis.speech.tts import build_speaker
@@ -36,12 +36,12 @@ from jarvis.ui.app_window import JarvisWindow
 
 logger = logging.getLogger(__name__)
 
-COMMAND_TIMEOUT_SECONDS = 6.0
 DIALOGUE_FOLLOW_UP_SECONDS = 10.0
+_SINGLE_INSTANCE_MUTEX = None
 
 
 class JarvisApplication:
-    """Controla o ciclo de vida da aplicação e a thread do assistente."""
+    """Controla o ciclo de vida da aplicação e a thread única do assistente."""
 
     def __init__(self, root: tk.Tk, settings: Settings) -> None:
         self._settings = settings
@@ -99,7 +99,6 @@ class JarvisApplication:
             self._speaker.set_language_voice(lang_code)
 
     def start(self) -> None:
-        """Inicia a thread do assistente (ignorado se já estiver em execução)."""
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
@@ -109,11 +108,10 @@ class JarvisApplication:
     def _run_assistant(self) -> None:
         settings = self._settings
         try:
-            enable_autostart()
-            repair_desktop_shortcut()
+            # Garante que o Jarvis NUNCA inicie sozinho junto com o Windows
+            disable_autostart()
             sync_project_async()
 
-            # Inicializa banco de dados SQLite e migrações
             db = DatabaseConnection()
             run_migrations(db.get_connection())
             supabase = SupabaseSyncService(settings.supabase_url, settings.supabase_key)
@@ -130,13 +128,10 @@ class JarvisApplication:
             from jarvis.services.user_profile import KEN_PROFILE
             KEN_PROFILE.sync_to_database(memory_repo)
 
-            # Motor com suporte a voz neural cinematográfica e vozes locais
             self._speaker = build_speaker(
                 on_start=lambda: self._window.set_speaking(True),
                 on_end=lambda: self._window.set_speaking(False),
             )
-            speaker = self._speaker
-
             gemini = GeminiAnswerService(settings.gemini_api_key, settings.gemini_model)
             self._gemini = gemini
             cognitive = CognitiveEngine(gemini, artifact_repo)
@@ -150,10 +145,9 @@ class JarvisApplication:
                 terminal=terminal,
                 gemini=gemini,
             )
-            speech_listener = self._listener
             ctx = CommandContext(
-                speaker=speaker,
-                listener=speech_listener,
+                speaker=self._speaker,
+                listener=self._listener,
                 view=self._window,
                 answers=gemini,
                 messages=TextFileMessageStore(settings.transcription_file),
@@ -166,7 +160,7 @@ class JarvisApplication:
             )
             self._assistant = Assistant(
                 ctx=ctx,
-                wake_listener=speech_listener,
+                wake_listener=self._listener,
                 registry=build_registry(cache=intent_cache),
                 user_name=settings.user_name,
                 wake_word=settings.wake_word,
@@ -190,14 +184,22 @@ class JarvisApplication:
 
 
 def main() -> None:
-    """Carrega as configurações e inicializa a interface gráfica."""
-    import sys
+    """Garante instância única e inicializa a interface gráfica."""
+    global _SINGLE_INSTANCE_MUTEX
     for stream in (sys.stdout, sys.stderr):
         try:
             if hasattr(stream, "reconfigure"):
                 stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
+    try:
+        _SINGLE_INSTANCE_MUTEX = ctypes.windll.kernel32.CreateMutexW(None, False, "JarvisStarkMarkVII_SingleInstance")
+        if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            raise SystemExit(0)
+    except SystemExit:
+        raise
+    except Exception:
+        pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = tk.Tk()
     try:
