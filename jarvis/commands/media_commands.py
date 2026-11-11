@@ -40,8 +40,8 @@ def _play_youtube(ctx: CommandContext, utterance: str) -> Outcome:
         "colocar youtube", "entrar no youtube", "ir para o youtube",
     )
     if norm in home_phrases:
-        ctx.launcher.open_url("https://www.youtube.com")
         ctx.reply("Colocando no YouTube agora.")
+        ctx.launcher.open_url("https://www.youtube.com")
         return Outcome.CONTINUE
 
     query = ""
@@ -68,8 +68,8 @@ def _play_youtube(ctx: CommandContext, utterance: str) -> Outcome:
     clean_query = query.replace("no youtube", "").strip()
     url = YOUTUBE_SEARCH_URL.format(query=quote_plus(clean_query))
     try:
-        ctx.launcher.open_url(url)
         ctx.reply(f"Entendido, senhor. Reproduzindo {clean_query} no YouTube.")
+        ctx.launcher.open_url(url)
     except LaunchError:
         ctx.reply("Não consegui abrir o navegador.")
     return Outcome.CONTINUE
@@ -88,21 +88,21 @@ def _whatsapp_chat(ctx: CommandContext, utterance: str) -> Outcome:
             break
 
     if not phone and not message:
-        ctx.launcher.open_url("https://web.whatsapp.com")
         ctx.reply("Colocando no WhatsApp do navegador agora.")
+        ctx.launcher.open_url("https://web.whatsapp.com")
         return Outcome.CONTINUE
     if not phone:
         spoken_num = _ask(ctx, "Qual o número de telefone com DDD?")
         phone = "".join(re.findall(r"\d+", (spoken_num or "").replace(" ", "")))
     if not phone:
-        ctx.launcher.open_url("https://web.whatsapp.com")
         ctx.reply("Abrindo o WhatsApp Web no navegador.")
+        ctx.launcher.open_url("https://web.whatsapp.com")
         return Outcome.CONTINUE
     if len(phone) in (10, 11) and not phone.startswith("55"):
         phone = f"55{phone}"
     url = f"https://web.whatsapp.com/send?phone={phone}" + (f"&text={quote_plus(message)}" if message else "")
-    ctx.launcher.open_url(url)
     ctx.reply(f"Abrindo conversa do WhatsApp para {phone}.")
+    ctx.launcher.open_url(url)
     return Outcome.CONTINUE
 
 
@@ -111,8 +111,8 @@ def _open_social_or_site(ctx: CommandContext, utterance: str) -> Outcome:
     norm = normalize(utterance)
     for net_name, net_url in SOCIAL_NETWORKS.items():
         if net_name in norm:
-            ctx.launcher.open_url(net_url)
             ctx.reply(f"Entendido, senhor. Abrindo {net_name.capitalize()}.")
+            ctx.launcher.open_url(net_url)
             return Outcome.CONTINUE
 
     target = ""
@@ -130,8 +130,8 @@ def _open_social_or_site(ctx: CommandContext, utterance: str) -> Outcome:
     clean = normalize(target).replace(" ", "")
     url = f"https://www.{clean}.com" if "." not in clean else f"https://{clean}"
     try:
-        ctx.launcher.open_url(url)
         ctx.reply(f"Entendido, senhor. Acessando {target}.")
+        ctx.launcher.open_url(url)
     except LaunchError:
         ctx.reply(f"Não foi possível abrir {target}.")
     return Outcome.CONTINUE

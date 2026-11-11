@@ -40,13 +40,12 @@ class GoogleSpeechListener:
         self._on_status, self._terminal, self._gemini = on_status, terminal, gemini
         self._on_language_detected, self._on_interrupt = on_language_detected, on_interrupt
         self._stop_event, self._reopen_event, self._lock = threading.Event(), threading.Event(), threading.Lock()
-        self._switched_default = False
+        self._listening, self._switched_default = threading.Event(), False
         self._phrase_queue: queue.Queue[tuple[sr.AudioData | None, str | None, float, int]] = queue.Queue()
 
         self._recognizer = sr.Recognizer()
-        self._recognizer.energy_threshold = DEFAULT_ENERGY_THRESHOLD
+        self._recognizer.energy_threshold, self._recognizer.pause_threshold = DEFAULT_ENERGY_THRESHOLD, 0.65
         self._recognizer.dynamic_energy_threshold = True
-        self._recognizer.pause_threshold = 0.65
         self._transcriber = MultiEngineTranscriber(self._recognizer, language=language, gemini=gemini)
         self._vad = AdaptiveVadRecorder(on_volume=on_volume)
 
@@ -63,18 +62,16 @@ class GoogleSpeechListener:
             if d.index == target:
                 self.device_name, self.sample_rate = d.name, d.sample_rate
                 break
-        try:
-            self._mic = sr.Microphone(device_index=self._device_index)
-        except Exception:
+        for idx in (self._device_index, None):
             try:
-                self._mic = sr.Microphone(device_index=None)
+                self._mic = sr.Microphone(device_index=idx)
+                return
             except Exception:
                 self._mic = None
 
     def set_device(self, device_index: int) -> bool:
         with self._lock:
-            self._device_index = device_index
-            self._switched_default = False
+            self._device_index, self._switched_default = device_index, False
             self._init_microphone()
             self._reopen_event.set()
             return self._mic is not None
@@ -108,6 +105,15 @@ class GoogleSpeechListener:
                     c_size = int(getattr(source, "CHUNK", 1024) or 1024)
 
                     while not self._stop_event.is_set():
+                        is_spk = bool(self._is_speaking and self._is_speaking())
+                        if not self._listening.is_set() or is_spk:
+                            try:
+                                source.stream.read(c_size, exception_on_overflow=False)
+                            except Exception:
+                                pass
+                            time.sleep(0.02)
+                            continue
+
                         audio, typed, dur, peak_rms = self._vad.record_phrase(
                             stream=source.stream, sample_rate=s_rate, sample_width=s_width,
                             chunk_size=c_size, is_speaking=self._is_speaking,
@@ -121,16 +127,8 @@ class GoogleSpeechListener:
                             self._mic = sr.Microphone(device_index=None)
                             break
 
-                        if audio is not None and self._is_speaking and self._is_speaking():
-                            try:
-                                raw_res = self._transcriber.transcribe(audio)
-                                text, _ = unpack_transcription(raw_res)
-                                if any(w in normalize(text) for w in STOP_TERMS):
-                                    if self._on_interrupt:
-                                        self._on_interrupt()
-                                    continue
-                            except Exception:
-                                pass
+                        if self._is_speaking and self._is_speaking():
+                            continue
 
                         if typed or audio is not None:
                             self._phrase_queue.put((audio, typed, dur, peak_rms))
@@ -141,6 +139,7 @@ class GoogleSpeechListener:
     def listen(self, idle_timeout: float = 1.0) -> str | None:
         if not self._worker.is_alive() and not self._stop_event.is_set():
             self._worker.start()
+        self._listening.set()
         deadline = time.monotonic() + idle_timeout
         while not self._stop_event.is_set() and time.monotonic() < deadline:
             try:
@@ -149,11 +148,12 @@ class GoogleSpeechListener:
                 continue
 
             if typed:
+                self._listening.clear()
                 clean_typed, _ = unpack_transcription(typed)
                 print(f"\n📋 [LOG CMD 1/4 - TECLADO] Digitado: \"{clean_typed}\"", flush=True)
                 return clean_typed
 
-            if audio is None:
+            if audio is None or (self._is_speaking and self._is_speaking()):
                 continue
 
             print(f"\n📋 [LOG CMD 1/4 - VOZ CAPTADA] ({dur:.1f}s | Pico: {peak_rms} RMS)", flush=True)
@@ -168,6 +168,8 @@ class GoogleSpeechListener:
                 text, engine = "", "Erro"
 
             if text:
+                self._listening.clear()
+                self._phrase_queue.queue.clear()
                 if self._on_language_detected:
                     self._on_language_detected(self._transcriber.last_detected_language)
                 self._dispatch_success(text, engine=engine)

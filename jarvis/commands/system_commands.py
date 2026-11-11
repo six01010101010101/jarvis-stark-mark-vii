@@ -34,9 +34,9 @@ def _send_shortcut(key1: int, key2: int) -> None:
 
 def _open_app(target: str, friendly_name: str) -> Handler:
     def handler(ctx: CommandContext, _utterance: str) -> Outcome:
+        ctx.reply(f"Entendido, senhor. Abrindo {friendly_name}.")
         try:
             ctx.launcher.launch(target)
-            ctx.reply(f"Entendido, senhor. Abrindo {friendly_name}.")
         except LaunchError:
             logger.exception("Falha ao abrir: %s", target)
             ctx.reply(f"Não foi possível abrir {friendly_name}, senhor.")
@@ -47,9 +47,9 @@ def _open_app(target: str, friendly_name: str) -> Handler:
 
 def _open_url(url: str, friendly_name: str) -> Handler:
     def handler(ctx: CommandContext, _utterance: str) -> Outcome:
+        ctx.reply(f"Entendido, senhor. Abrindo {friendly_name}.")
         try:
             ctx.launcher.open_url(url)
-            ctx.reply(f"Entendido, senhor. Abrindo {friendly_name}.")
         except LaunchError:
             ctx.reply(f"Não foi possível acessar {friendly_name}, senhor.")
         return Outcome.CONTINUE
@@ -109,8 +109,8 @@ def _open_generic_app(ctx: CommandContext, utterance: str) -> Outcome:
         ctx.reply("Ok, senhor, mas o que você gostaria de abrir ou executar?", pending_intent="open_app")
         return Outcome.CONTINUE
     try:
-        ctx.launcher.launch(target)
         ctx.reply(f"Abrindo {target} agora.")
+        ctx.launcher.launch(target)
     except LaunchError:
         ctx.reply(f"Não encontrei o programa {target} no sistema.")
     return Outcome.CONTINUE
@@ -140,11 +140,11 @@ def _play_local_music(ctx: CommandContext, _utterance: str) -> Outcome:
         songs = [f for f in music_dir.iterdir() if f.is_file() and f.suffix.lower() in (".mp3", ".wav", ".flac", ".m4a")]
         if songs:
             song = random.choice(songs)
-            os.startfile(str(song))
             ctx.reply(f"Reproduzindo {song.stem} da sua biblioteca musical, senhor Ken.")
+            os.startfile(str(song))
             return Outcome.CONTINUE
-    ctx.launcher.open_url("https://music.youtube.com")
     ctx.reply("Abrindo o YouTube Music para o senhor, senhor Ken.")
+    ctx.launcher.open_url("https://music.youtube.com")
     return Outcome.CONTINUE
 
 

@@ -91,17 +91,17 @@ class AdaptiveVadRecorder:
 
             start_threshold = max(int(self._noise_floor * 1.28) + 8, 14)
 
-            # Durante fala, filtra eco residual mas permite interrupção 'Jarvis, pare' se voz firme
-            if is_speaking and is_speaking():
-                barge_threshold = max(int(start_threshold * 1.3), 35)
-                if rms < barge_threshold and not speaking_started:
-                    self._echo_guard_until = time.monotonic() + 0.15
-                    self._update_hud(rms, int(self._noise_floor), start_threshold, is_voice=False)
-                    recorded.clear()
-                    pre_roll.clear()
-                    voice_chunks = 0
-                    silence_chunks = 0
-                    continue
+            now = time.monotonic()
+            in_speech = bool(is_speaking and is_speaking())
+            if in_speech:
+                self._echo_guard_until = now + 0.45
+            if in_speech or now < self._echo_guard_until:
+                self._update_hud(0, int(self._noise_floor), start_threshold, is_voice=False)
+                recorded.clear()
+                pre_roll.clear()
+                speaking_started = False
+                voice_chunks = silence_chunks = 0
+                continue
 
             if not speaking_started:
                 is_voice = rms >= start_threshold

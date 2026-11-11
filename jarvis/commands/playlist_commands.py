@@ -14,8 +14,8 @@ PLAYLIST_URLS = {
 def _play_theme(theme: str) -> Command:
     def handler(ctx: CommandContext, _utterance: str) -> Outcome:
         url = PLAYLIST_URLS[theme]
-        ctx.launcher.open_url(url)
         ctx.reply(f"Iniciando playlist de {theme} no YouTube, senhor.")
+        ctx.launcher.open_url(url)
         return Outcome.CONTINUE
 
     triggers = {

@@ -126,15 +126,15 @@ class CommandRegistry:
         reply = intent.get("reply", "")
 
         if action == "open_url" and target:
-            ctx.launcher.open_url(target)
             if reply:
                 ctx.reply(reply)
+            ctx.launcher.open_url(target)
             return
 
         if action == "open_app" and target:
-            ctx.launcher.launch(target)
             if reply:
                 ctx.reply(reply)
+            ctx.launcher.launch(target)
             return
 
         if action == "close_tab":

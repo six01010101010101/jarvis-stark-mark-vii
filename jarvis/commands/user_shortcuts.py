@@ -26,22 +26,22 @@ def _send_clear_keys() -> None:
 
 
 def _open_instagram(ctx: CommandContext, _utterance: str) -> Outcome:
-    ctx.launcher.open_url(KEN_PROFILE.get_instagram_url())
     ctx.reply(f"Acessando seu perfil no Instagram @{KEN_PROFILE.instagram_handle}, senhor.")
+    ctx.launcher.open_url(KEN_PROFILE.get_instagram_url())
     return Outcome.CONTINUE
 
 
 def _open_youtube(ctx: CommandContext, _utterance: str) -> Outcome:
-    ctx.launcher.open_url(KEN_PROFILE.get_youtube_url())
     ctx.reply(f"Abrindo o YouTube na conta {KEN_PROFILE.youtube_email}, senhor.")
+    ctx.launcher.open_url(KEN_PROFILE.get_youtube_url())
     return Outcome.CONTINUE
 
 
 def _open_whatsapp(ctx: CommandContext, utterance: str) -> Outcome:
     match = re.search(r"(?:dizendo|com a mensagem|falando)\s+(.+)$", utterance, re.I)
     msg = match.group(1).strip() if match else ""
-    ctx.launcher.open_url(KEN_PROFILE.get_whatsapp_url(msg))
     ctx.reply(f"Abrindo WhatsApp no seu número {KEN_PROFILE.whatsapp_number}, senhor.")
+    ctx.launcher.open_url(KEN_PROFILE.get_whatsapp_url(msg))
     return Outcome.CONTINUE
 
 
