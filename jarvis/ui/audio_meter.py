@@ -32,7 +32,7 @@ class StarkMicControlPanel(tk.Frame):
         self._on_sensitivity_change = on_sensitivity_change
         self._on_patience_change = on_patience_change
         self.on_language_change = on_language_change
-        self._sensitivity, self._thresh_pct = 2.5, 30
+        self._sensitivity, self._thresh_pct = 3.0, 45
         self.pack(fill="x", padx=16, pady=(2, 4))
 
         style = ttk.Style()
@@ -71,10 +71,10 @@ class StarkMicControlPanel(tk.Frame):
         self.meter_canvas.pack(fill="x", pady=(2, 4))
 
         # 3. Slider de Sensibilidade (Threshold)
-        self.thresh_label = tk.Label(self, text="Sensibilidade / Ganho Acústico: 2.5x (Limiar 30%)", bg=theme.CARD_BG, fg="#E0FAFF", font=("Consolas", 8))
+        self.thresh_label = tk.Label(self, text="Sensibilidade / Ganho Acústico: 3.0x (Alta Captação)", bg=theme.CARD_BG, fg="#E0FAFF", font=("Consolas", 8))
         self.thresh_label.pack(anchor="w")
         self.thresh_slider = tk.Scale(self, from_=5, to=95, orient="horizontal", bg=theme.CARD_BG, fg=theme.ACCENT_CYAN, troughcolor="#101926", highlightthickness=0, showvalue=False, command=self._handle_thresh)
-        self.thresh_slider.set(30)
+        self.thresh_slider.set(45)
         self.thresh_slider.pack(fill="x", pady=(0, 3))
 
         # 4. Slider do Ciclo de Paciência (s)

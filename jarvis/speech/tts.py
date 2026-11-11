@@ -37,7 +37,7 @@ class NativeWindowsSpeaker(Speaker):
             comtypes.CoInitialize()
             import comtypes.client
             self._voice = comtypes.client.CreateObject("SAPI.SpVoice")
-            self._voice.Rate = 1  # type: ignore[attr-defined]
+            self._voice.Rate = 2  # type: ignore[attr-defined]
             self._voice.Volume = 100  # type: ignore[attr-defined]
             self.set_voice(self._profile)
             logger.info("🎙️ [TTS] SAPI5 inicializado com sucesso via comtypes.")
@@ -47,7 +47,7 @@ class NativeWindowsSpeaker(Speaker):
             try:
                 import pyttsx3
                 self._pyttsx_engine = pyttsx3.init()
-                self._pyttsx_engine.setProperty("rate", 195)  # type: ignore[attr-defined]
+                self._pyttsx_engine.setProperty("rate", 215)  # type: ignore[attr-defined]
             except Exception as e2:
                 logger.error("Falha ao inicializar pyttsx3: %s", e2)
                 self._pyttsx_engine = None

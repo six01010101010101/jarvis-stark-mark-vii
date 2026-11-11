@@ -1,4 +1,4 @@
-"""Motor de voz neural blindado (SafeNeuralSpeaker + Edge-TTS + SAPI5 COM Thread Init)."""
+"""Motor de voz neural ultra-rápida (Edge-TTS pt-BR-AntonioNeural +16%) com WMPlayer + MCI e SAPI5."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "jarvis_sounds" / "tts_cache"
 DEFAULT_MALE_VOICE = "pt-BR-AntonioNeural"
 DEFAULT_FEMALE_VOICE = "pt-BR-FranciscaNeural"
-GPU_DEVICE, GPU_COMPUTE_TYPE = "cuda", "float16"
+SPEECH_RATE = "+16%"
 
 LANGUAGE_VOICES: dict[str, str] = {
     "pt": "pt-BR-AntonioNeural", "en": "en-GB-RyanNeural", "es": "es-ES-AlvaroNeural",
@@ -30,8 +30,19 @@ LANGUAGE_VOICES: dict[str, str] = {
 }
 
 THINKING_FILLERS = (
-    "Analisando os dados, senhor...", "Consultando a rede, só um instante...",
-    "Processando os parâmetros, senhor.", "Um momento enquanto processo isso...",
+    "Analisando os dados, senhor.",
+    "Consultando a rede, só um instante.",
+    "Processando os parâmetros, senhor.",
+)
+
+PREWARM_PHRASES = (
+    "Sim, senhor, o que você gostaria de fazer?",
+    "Sim, senhor, o que você gostaria?",
+    "Pois não, senhor, o que você gostaria de fazer?",
+    "Estou ouvindo, senhor. O que gostaria que eu fizesse?",
+    "Ok, senhor, mas o que você gostaria de abrir ou executar?",
+    "Ok, senhor, o que você gostaria que eu fechasse ou encerrasse?",
+    "Às suas ordens, senhor. Conversa encerrada.",
 )
 
 
@@ -39,21 +50,6 @@ def split_into_chunks(text: str) -> list[str]:
     if not text or not str(text).strip():
         return []
     return [c.strip() for c in re.split(r"(?<=[.!?।:;])\s+", str(text).strip()) if c.strip()]
-
-
-def _init_windows_com_in_thread() -> None:
-    """Inicializa COM no Windows para que SAPI5/WMPlayer nunca fiquem mudos em threads secundárias."""
-    try:
-        import pythoncom  # type: ignore[import-not-found]
-        pythoncom.CoInitialize()
-        return
-    except Exception:
-        pass
-    try:
-        import comtypes
-        comtypes.CoInitialize()
-    except Exception:
-        pass
 
 
 def _pump_win32_messages() -> None:
@@ -66,114 +62,119 @@ def _pump_win32_messages() -> None:
         pass
 
 
-def _play_mp3_native(mp3_path: Path, max_wait: float = 16.0) -> bool:
+def _play_mp3_native(mp3_path: Path, max_wait: float = 15.0) -> bool:
+    """Reproduz MP3 nativamente no Windows sem pausas extras no final (WMPlayer + MCI fallback)."""
     if not mp3_path.exists() or mp3_path.stat().st_size == 0:
         return False
-    _init_windows_com_in_thread()
-    est_duration = max(0.7, min((mp3_path.stat().st_size / 5800.0) + 0.4, max_wait))
+    file_size = mp3_path.stat().st_size
+    est_duration = max(0.55, min((file_size / 7200.0) + 0.22, max_wait))
+
+    # 1. Camada Principal: Windows Media Player COM
     try:
+        import comtypes
         import comtypes.client
+        comtypes.CoInitialize()
         wmp = comtypes.client.CreateObject("WMPlayer.OCX")
         wmp.settings.volume = 100
         media = wmp.newMedia(str(mp3_path.resolve()))
         wmp.currentMedia = media
         wmp.controls.play()
+        started = False
         t_start = time.time()
-        while time.time() - t_start < 1.1:
+        while time.time() - t_start < 1.0:
             _pump_win32_messages()
             if wmp.playState == 3:
-                t0 = time.time()
-                while time.time() - t0 < est_duration:
-                    _pump_win32_messages()
-                    dur = float(getattr(media, "duration", 0.0) or 0.0)
-                    pos = float(getattr(wmp.controls, "currentPosition", 0.0) or 0.0)
-                    if wmp.playState in (1, 8) or (dur > 0.2 and pos >= dur - 0.06):
-                        break
-                    time.sleep(0.025)
-                wmp.controls.stop()
-                wmp.close()
-                return True
-            time.sleep(0.02)
+                started = True
+                break
+            time.sleep(0.015)
+        if started:
+            t0 = time.time()
+            while time.time() - t0 < est_duration:
+                _pump_win32_messages()
+                if wmp.playState in (1, 8):
+                    break
+                dur = float(getattr(media, "duration", 0.0) or 0.0)
+                pos = float(getattr(wmp.controls, "currentPosition", 0.0) or 0.0)
+                if dur > 0.15 and pos >= dur - 0.04:
+                    break
+                time.sleep(0.015)
+            wmp.controls.stop()
+            wmp.close()
+            return True
         wmp.controls.stop()
         wmp.close()
     except Exception as exc:
-        logger.debug("WMPlayer.OCX fallback acionado: %s", exc)
+        logger.debug("Falha WMPlayer.OCX: %s", exc)
+
+    # 2. Camada Secundária: MCI nativo do Windows
+    try:
+        buf = ctypes.create_unicode_buffer(300)
+        ctypes.windll.kernel32.GetShortPathNameW(str(mp3_path), buf, 300)
+        short_path = buf.value or str(mp3_path)
+        alias = f"jarvis_mci_{int(time.time() * 1000)}"
+        winmm = ctypes.windll.winmm
+        res = winmm.mciSendStringW(f'open "{short_path}" type mpegvideo alias {alias}', None, 0, 0)
+        if res != 0:
+            res = winmm.mciSendStringW(f'open "{short_path}" alias {alias}', None, 0, 0)
+        if res == 0:
+            winmm.mciSendStringW(f"play {alias}", None, 0, 0)
+            t0 = time.time()
+            while time.time() - t0 < est_duration:
+                _pump_win32_messages()
+                status = ctypes.create_unicode_buffer(64)
+                winmm.mciSendStringW(f"status {alias} mode", status, 64, 0)
+                if time.time() - t0 > 0.25 and "playing" not in status.value.lower():
+                    break
+                time.sleep(0.015)
+            winmm.mciSendStringW(f"stop {alias}", None, 0, 0)
+            winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+            return True
+    except Exception as exc:
+        logger.debug("Falha MCI: %s", exc)
     return False
 
 
 class SafeNeuralSpeaker:
-    """Motor de fala blindado contra falhas de Thread (COM / Asyncio) no Windows."""
+    """Fila de fala assíncrona compatível com chamadas diretas."""
 
     def __init__(self, tts_engine: object) -> None:
         self.tts_engine = tts_engine
-        self.audio_queue: queue.Queue[tuple[str, str, Callable[[], None] | None]] = queue.Queue()
+        self.audio_queue: queue.Queue[tuple[str, Callable[[], None] | None]] = queue.Queue()
         self.is_speaking = False
-        self._stop_event = threading.Event()
-        self._worker = threading.Thread(target=self._playback_worker, name="safe-neural-tts", daemon=True)
-        self._worker.start()
-
-    def split_into_chunks(self, text: str) -> list[str]:
-        return split_into_chunks(text)
-
-    def speak(self, text: str, lang: str = "pt", on_done: Callable[[], None] | None = None) -> None:
-        self.speak_async(text, lang=lang, on_complete=on_done)
 
     def speak_async(self, text: str, lang: str = "pt", on_complete: Callable[[], None] | None = None) -> None:
-        chunks = split_into_chunks(text)
-        if not chunks:
-            if on_complete:
-                on_complete()
-            return
-        self._stop_event.clear()
-        for i, chunk in enumerate(chunks):
-            self.audio_queue.put((chunk, lang, on_complete if i == len(chunks) - 1 else None))
-
-    def speak_thinking_filler(self) -> None:
-        self.speak_async(random.choice(THINKING_FILLERS))
-
-    def _playback_worker(self) -> None:
-        _init_windows_com_in_thread()
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        while True:
-            chunk, lang, callback = self.audio_queue.get()
-            if not self._stop_event.is_set():
-                try:
-                    self.is_speaking = True
-                    print(f"[JARVIS FALANDO ({lang})]: {chunk}", flush=True)
-                    if hasattr(self.tts_engine, "say_chunk"):
-                        self.tts_engine.say_chunk(chunk)  # type: ignore[attr-defined]
-                    elif hasattr(self.tts_engine, "say"):
-                        self.tts_engine.say(chunk)  # type: ignore[attr-defined]
-                    elif callable(self.tts_engine):
-                        self.tts_engine(chunk)
-                except Exception as exc:
-                    print(f"[ERRO CRÍTICO TTS RECUPERADO]: {exc}", flush=True)
-            self.audio_queue.task_done()
-            if self.audio_queue.empty():
+        def _worker() -> None:
+            self.is_speaking = True
+            try:
+                getattr(self.tts_engine, "say")(text)
+            finally:
                 self.is_speaking = False
-            if callback:
-                try:
-                    callback()
-                except Exception as cb_err:
-                    print(f"[ERRO CALLBACK PÓS-FALA]: {cb_err}", flush=True)
+                if on_complete:
+                    on_complete()
+
+        threading.Thread(target=_worker, name="tts-async", daemon=True).start()
 
 
 NeuralSpeakerStream = SafeNeuralSpeaker
 
 
 class NeuralSpeaker(Speaker):
-    """Sintetizador Poliglota com streaming por sentenças, inicialização COM e fallback SAPI5."""
+    """Sintetizador com cadência acelerada (+16%), cache 0ms e reprodução contínua sem engasgos."""
 
     def __init__(self, fallback: Speaker, on_start: Callable[[], None], on_end: Callable[[], None]) -> None:
         self._fallback, self._on_start, self._on_end = fallback, on_start, on_end
         self._lock = threading.Lock()
         self._profile, self._voice = "male", DEFAULT_MALE_VOICE
-        self.device, self.compute_type = GPU_DEVICE, GPU_COMPUTE_TYPE
         self.is_speaking = False
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self._stream = SafeNeuralSpeaker(self)
+        threading.Thread(target=self._prewarm_cache, name="tts-prewarm", daemon=True).start()
+
+    def _prewarm_cache(self) -> None:
+        for phrase in PREWARM_PHRASES:
+            path = self._get_cache_path(phrase)
+            if not path.exists() or path.stat().st_size == 0:
+                self._synthesize_edge(phrase, path)
 
     def set_voice(self, profile: str) -> bool:
         p = profile.lower()
@@ -204,7 +205,7 @@ class NeuralSpeaker(Speaker):
         return f"Neural Feminina ({DEFAULT_FEMALE_VOICE})" if self._voice == DEFAULT_FEMALE_VOICE else f"Neural Poliglota ({self._voice})"
 
     def _get_cache_path(self, text: str) -> Path:
-        digest = hashlib.md5(f"{self._voice}_{text.strip()}".encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.md5(f"{self._voice}_{SPEECH_RATE}_{text.strip()}".encode("utf-8")).hexdigest()[:16]
         return CACHE_DIR / f"tts_{digest}.mp3"
 
     def _synthesize_edge(self, text: str, out_path: Path) -> bool:
@@ -212,49 +213,40 @@ class NeuralSpeaker(Speaker):
             return True
         async def _run() -> None:
             import edge_tts
-            await edge_tts.Communicate(text, self._voice, rate="-2%").save(str(out_path))
+            await edge_tts.Communicate(text, self._voice, rate=SPEECH_RATE).save(str(out_path))
         try:
             loop = asyncio.new_event_loop()
             try:
-                loop.run_until_complete(asyncio.wait_for(_run(), timeout=3.2))
+                loop.run_until_complete(asyncio.wait_for(_run(), timeout=3.0))
                 return out_path.exists() and out_path.stat().st_size > 0
             finally:
                 loop.close()
-        except Exception as exc:
-            logger.debug("Síntese Edge-TTS falhou (%s); usando SAPI5 nativo.", exc)
+        except Exception:
             return False
 
-    def say_chunk(self, chunk: str) -> None:
-        _init_windows_com_in_thread()
-        print(f"[JARVIS FALANDO ({self._profile})]: {chunk}", flush=True)
-        cached = self._get_cache_path(chunk)
-        played = _play_mp3_native(cached) if (cached.exists() and cached.stat().st_size > 0) else (
-            _play_mp3_native(cached) if self._synthesize_edge(chunk, cached) else False
-        )
-        if not played:
-            self._fallback.say(chunk)
-
     def say(self, text: str) -> None:
-        chunks = split_into_chunks(text)
-        if not chunks:
+        """Sintetiza e reproduz a frase inteira com cadência rápida (+16%) sem pausas entre palavras."""
+        clean = text.strip()
+        if not clean:
             return
-        if len(chunks) > 1:
-            threading.Thread(target=lambda r: [self._synthesize_edge(c, self._get_cache_path(c)) for c in r], args=(chunks[1:],), daemon=True).start()
         with self._lock:
             self.is_speaking = True
+            cached_file = self._get_cache_path(clean)
+            played = False
             self._on_start()
             try:
-                for chunk in chunks:
-                    self.say_chunk(chunk)
-            except Exception as exc:
-                print(f"[ERRO CRÍTICO TTS RECUPERADO]: {exc}", flush=True)
-                self._fallback.say(text)
+                if cached_file.exists() and cached_file.stat().st_size > 0:
+                    played = _play_mp3_native(cached_file)
+                if not played and self._synthesize_edge(clean, cached_file):
+                    played = _play_mp3_native(cached_file)
+                if not played:
+                    self._fallback.say(clean)
             finally:
                 self.is_speaking = False
                 self._on_end()
 
     def speak_async(self, text: str, on_complete: Callable[[], None] | None = None) -> None:
-        self._stream.speak_async(text, lang=self._profile, on_complete=on_complete)
+        self._stream.speak_async(text, on_complete=on_complete)
 
     def speak_thinking_filler(self) -> None:
         threading.Thread(target=self.say, args=(random.choice(THINKING_FILLERS),), daemon=True).start()
