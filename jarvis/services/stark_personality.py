@@ -8,7 +8,7 @@ WAKE_RESPONSES = (
     "Sim, senhor, o que você gostaria de fazer?",
     "Sim, senhor, o que você gostaria?",
     "Pois não, senhor, o que você gostaria de fazer?",
-    "Estou ouvindo, senhor. O que gostaria que eu fizesse?",
+    "Às suas ordens, senhor. O que gostaria que eu fizesse?",
 )
 
 TONY_STARK_GREETINGS = (

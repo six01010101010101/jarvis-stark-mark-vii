@@ -35,6 +35,7 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
     """Cria o registro completo de comandos do J.A.R.V.I.S."""
     registry = CommandRegistry(cache=cache)
     registry.register(
+        *close_commands(),
         *user_shortcuts(),
         *presence_commands(),
         *machine_commands(),
@@ -51,7 +52,6 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
         *marvel_commands(),
         *playlist_commands(),
         *cognitive_commands(),
-        *close_commands(),
         *media_commands(),
         *system_commands(),
         *info_commands(),

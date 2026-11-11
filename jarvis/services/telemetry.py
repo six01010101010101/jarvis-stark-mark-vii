@@ -113,6 +113,6 @@ class SystemTelemetry:
             f"Relatório de telemetria concluído, senhor Ken. Todos os sistemas estão operacionais. "
             f"O computador está ativo há {uptime}. "
             f"Memória RAM com {free_ram} gigabytes livres de {total_ram} gigabytes. "
-            f"Armazenamento primário com {free_disk} gigabytes disponíveis de {total_disk} gigabytes. "
+            f"Disco primário com {free_disk} gigabytes disponíveis de {total_disk} gigabytes. "
             f"Alimentação em estado {power}. Nenhum erro crítico detectado na máquina."
         )

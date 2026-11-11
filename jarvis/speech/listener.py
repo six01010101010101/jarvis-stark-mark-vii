@@ -52,6 +52,9 @@ class GoogleSpeechListener:
         self._phrase_queue: queue.Queue[tuple[sr.AudioData | None, str | None, float, int]] = queue.Queue()
 
         self._recognizer = sr.Recognizer()
+        self._recognizer.energy_threshold = DEFAULT_ENERGY_THRESHOLD
+        self._recognizer.dynamic_energy_threshold = True
+        self._recognizer.pause_threshold = 0.65
         self._transcriber = MultiEngineTranscriber(self._recognizer, language=language, gemini=gemini)
         self._vad = AdaptiveVadRecorder(on_volume=on_volume)
 
@@ -60,7 +63,6 @@ class GoogleSpeechListener:
         self.device_name, self.sample_rate = "Microfone Padrão", 16000
         self._init_microphone()
         self._worker = threading.Thread(target=self._capture_loop, name="jarvis-mic-capture", daemon=True)
-        self._worker.start()
 
     def _init_microphone(self) -> None:
         devs = list_input_devices()
@@ -144,6 +146,8 @@ class GoogleSpeechListener:
 
     def listen(self, idle_timeout: float = 1.0) -> str | None:
         """Consome frases da thread de captura; garante retorno str desempacotado."""
+        if not self._worker.is_alive() and not self._stop_event.is_set():
+            self._worker.start()
         deadline = time.monotonic() + idle_timeout
         while not self._stop_event.is_set() and time.monotonic() < deadline:
             try:
@@ -188,6 +192,18 @@ class GoogleSpeechListener:
             print("📋 [LOG CMD] ⚠️ Som sem fala nítida ignorado. Aguardando comando...", flush=True)
             if self._on_status:
                 self._on_status("🟢 Ouvindo // Pode falar...")
+        return None
+
+    def _transcribe(self, audio: sr.AudioData) -> str | None:
+        """Compatibilidade direta com Google STT para testes unitários."""
+        try:
+            res = self._recognizer.recognize_google(audio, language=self._language)
+            text = str(res).strip() if res else ""
+            if text:
+                self._dispatch_success(text, engine="Google-Cloud")
+                return text
+        except (sr.UnknownValueError, sr.RequestError):
+            pass
         return None
 
     def _dispatch_success(self, text: str, engine: str) -> None:

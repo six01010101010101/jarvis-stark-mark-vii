@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import webbrowser
@@ -15,6 +16,7 @@ from jarvis.text_utils import normalize
 logger = logging.getLogger(__name__)
 
 _ALLOWED_URL_SCHEMES = ("http://", "https://")
+_CREATION_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 COMMON_APP_MAP: dict[str, str] = {
     "bloco de notas": "notepad.exe",
@@ -29,6 +31,9 @@ COMMON_APP_MAP: dict[str, str] = {
     "navegador": "https://www.google.com",
     "edge": "msedge.exe",
     "microsoft edge": "msedge.exe",
+    "brave": "brave.exe",
+    "firefox": "firefox.exe",
+    "opera": "opera.exe",
     "vs code": "code",
     "vscode": "code",
     "visual studio code": "code",
@@ -38,6 +43,7 @@ COMMON_APP_MAP: dict[str, str] = {
     "powershell": "powershell.exe",
     "excel": "excel.exe",
     "word": "winword.exe",
+    "powerpoint": "powerpnt.exe",
     "gerenciador de tarefas": "taskmgr.exe",
     "task manager": "taskmgr.exe",
     "explorador de arquivos": "explorer.exe",
@@ -45,18 +51,55 @@ COMMON_APP_MAP: dict[str, str] = {
     "configuracoes": "ms-settings:",
     "painel de controle": "control.exe",
     "downloads": str(Path.home() / "Downloads"),
+    "steam": "steam://open/main",
+    "spotify": "spotify:",
+    "discord": "discord:",
+    "whatsapp": "whatsapp:",
 }
 
 _APP_INDEXER = PcAppIndexer()
+
+
+def _find_windows_store_app_id(query: str) -> str | None:
+    """Procura aplicativos e jogos UWP/Microsoft Store/Xbox via Get-StartApps."""
+    if os.name != "nt":
+        return None
+    clean = normalize(query).strip()
+    if len(clean) < 3:
+        return None
+    try:
+        ps_cmd = (
+            f"Get-StartApps | Where-Object {{ $_.Name -like '*{clean}*' }} "
+            "| Select-Object -First 1 -ExpandProperty AppID"
+        )
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            timeout=2.5,
+            creationflags=_CREATION_FLAGS,
+        )
+        app_id = (res.stdout or "").strip()
+        if app_id:
+            return f"shell:AppsFolder\\{app_id}"
+    except Exception:
+        pass
+    return None
 
 
 def resolve_app_target(target: str) -> str | None:
     """Resolve nomes amigáveis ou abreviações em executáveis, jogos ou atalhos instalados."""
     norm = normalize(target)
     if norm in COMMON_APP_MAP:
-        return COMMON_APP_MAP[norm]
+        # Se for protocolo (steam:, discord:, spotify:), prefere atalho local se existir
+        mapped = COMMON_APP_MAP[norm]
+        if mapped.endswith(":"):
+            indexed = _APP_INDEXER.find_app(target)
+            if indexed:
+                return indexed
+        return mapped
 
-    # 1. Verifica no indexador global de jogos e programas do computador (180+ itens)
+    # 1. Verifica no indexador global de jogos e programas do computador
     indexed_path = _APP_INDEXER.find_app(target)
     if indexed_path:
         return indexed_path
@@ -71,6 +114,11 @@ def resolve_app_target(target: str) -> str | None:
     if target.endswith((".exe", ".msc", ".bat", ".cmd", ".lnk", ".url")) or ":" in target:
         return target
 
+    # 4. Fallback em Apps/Jogos do Windows (Get-StartApps / Xbox / Store)
+    store_uri = _find_windows_store_app_id(target)
+    if store_uri:
+        return store_uri
+
     return None
 
 
@@ -84,7 +132,7 @@ class WindowsLauncher:
 
         resolved = resolve_app_target(target)
         if not resolved:
-            raise LaunchError(f"Aplicativo não encontrado no sistema: {target}")
+            raise LaunchError(f"Aplicativo ou jogo não encontrado no sistema: {target}")
 
         if resolved.startswith(_ALLOWED_URL_SCHEMES):
             self.open_url(resolved)
@@ -93,7 +141,7 @@ class WindowsLauncher:
         try:
             subprocess.Popen(
                 ["cmd.exe", "/c", "start", "", resolved],
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=_CREATION_FLAGS,
             )
         except OSError as exc:
             raise LaunchError(f"Não foi possível iniciar {target}: {exc}") from exc

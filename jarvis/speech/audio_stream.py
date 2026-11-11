@@ -121,12 +121,18 @@ def pick_default_device_index(devices: list[AudioDeviceInfo]) -> int | None:
     priority = ("microfone", "microphone", "mic", "headset", "realtek", "array", "fone", "usb")
 
     # 1. Filtra dispositivos físicos prioritários com conectividade real confirmada
+    first_priority_idx: int | None = None
     for d in devices:
         low = d.name.lower()
         if any(b in low for b in blacklist):
             continue
-        if any(p in low for p in priority) and test_device_connectivity(d.index):
-            return d.index
+        if any(p in low for p in priority):
+            if first_priority_idx is None:
+                first_priority_idx = d.index
+            if test_device_connectivity(d.index):
+                return d.index
+    if first_priority_idx is not None:
+        return first_priority_idx
 
     # 2. Testa o dispositivo padrão do Windows
     try:

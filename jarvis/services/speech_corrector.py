@@ -26,7 +26,7 @@ class SpeechCorrector:
     APP_EXPANSIONS: ClassVar[tuple[tuple[re.Pattern[str], str], ...]] = (
         (re.compile(r"\b(?:fort|forti|fortinai)\b", re.I), "fortnite"),
         (re.compile(r"\b(?:mine|minecraf)\b", re.I), "minecraft"),
-        (re.compile(r"\bbloco\s+(?:di\s*notas?|de\s*nota|notas)\b", re.I), "bloco de notas"),
+        (re.compile(r"\bbloco\s+(?:di\s*notas?|de\s*notas?|dinotas?|notas?)\b", re.I), "bloco de notas"),
         (re.compile(r"\b(?:whats|zap|whatssap|watssap|wats)\b", re.I), "whatsapp"),
         (re.compile(r"\b(?:tube|youtub|iotube|youtubiu)\b", re.I), "youtube"),
         (re.compile(r"\b(?:calque|calcula)\b", re.I), "calculadora"),
@@ -48,7 +48,7 @@ class SpeechCorrector:
 
         from jarvis.text_utils import is_wake_word
         for i, token in enumerate(tokens):
-            if is_wake_word(token):
+            if is_wake_word(token) or token in self.WAKE_VARIANTS:
                 tokens[i] = "jarvis"
                 break
 
@@ -66,4 +66,5 @@ class SpeechCorrector:
         step1 = self.repair_wake_word(utterance)
         step2 = self.expand_abbreviations(step1)
         step3 = self._phonetic.normalize_utterance(step2)
-        return " ".join(step3.split())
+        cleaned = " ".join(step3.split())
+        return cleaned.replace("bloco de notas de notas", "bloco de notas")

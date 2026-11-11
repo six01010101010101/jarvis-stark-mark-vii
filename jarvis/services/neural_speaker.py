@@ -1,4 +1,4 @@
-"""Motor de voz neural ultra-rápida (Edge-TTS pt-BR-AntonioNeural +16%) com WMPlayer + MCI e SAPI5."""
+"""Motor de voz neural limpa do J.A.R.V.I.S. (pt-BR-AntonioNeural) com reprodução acelerada e cache."""
 
 from __future__ import annotations
 
@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "jarvis_sounds" / "tts_cache"
 DEFAULT_MALE_VOICE = "pt-BR-AntonioNeural"
 DEFAULT_FEMALE_VOICE = "pt-BR-FranciscaNeural"
-SPEECH_RATE = "+16%"
 
 LANGUAGE_VOICES: dict[str, str] = {
     "pt": "pt-BR-AntonioNeural", "en": "en-GB-RyanNeural", "es": "es-ES-AlvaroNeural",
@@ -33,16 +32,6 @@ THINKING_FILLERS = (
     "Analisando os dados, senhor.",
     "Consultando a rede, só um instante.",
     "Processando os parâmetros, senhor.",
-)
-
-PREWARM_PHRASES = (
-    "Sim, senhor, o que você gostaria de fazer?",
-    "Sim, senhor, o que você gostaria?",
-    "Pois não, senhor, o que você gostaria de fazer?",
-    "Estou ouvindo, senhor. O que gostaria que eu fizesse?",
-    "Ok, senhor, mas o que você gostaria de abrir ou executar?",
-    "Ok, senhor, o que você gostaria que eu fechasse ou encerrasse?",
-    "Às suas ordens, senhor. Conversa encerrada.",
 )
 
 
@@ -62,26 +51,26 @@ def _pump_win32_messages() -> None:
         pass
 
 
-def _play_mp3_native(mp3_path: Path, max_wait: float = 15.0) -> bool:
-    """Reproduz MP3 nativamente no Windows sem pausas extras no final (WMPlayer + MCI fallback)."""
+def _play_mp3_native(mp3_path: Path, max_wait: float = 16.0) -> bool:
+    """Reproduz arquivo MP3 da voz masculina do Jarvis (WMPlayer COM 1.14x + MCI fallback)."""
     if not mp3_path.exists() or mp3_path.stat().st_size == 0:
         return False
-    file_size = mp3_path.stat().st_size
-    est_duration = max(0.55, min((file_size / 7200.0) + 0.22, max_wait))
-
-    # 1. Camada Principal: Windows Media Player COM
+    est_duration = max(0.55, min((mp3_path.stat().st_size / 6600.0) + 0.25, max_wait))
     try:
         import comtypes
         import comtypes.client
         comtypes.CoInitialize()
         wmp = comtypes.client.CreateObject("WMPlayer.OCX")
         wmp.settings.volume = 100
+        try:
+            wmp.settings.rate = 1.14
+        except Exception:
+            pass
         media = wmp.newMedia(str(mp3_path.resolve()))
         wmp.currentMedia = media
         wmp.controls.play()
-        started = False
-        t_start = time.time()
-        while time.time() - t_start < 1.0:
+        started, t_start = False, time.time()
+        while time.time() - t_start < 1.2:
             _pump_win32_messages()
             if wmp.playState == 3:
                 started = True
@@ -106,7 +95,6 @@ def _play_mp3_native(mp3_path: Path, max_wait: float = 15.0) -> bool:
     except Exception as exc:
         logger.debug("Falha WMPlayer.OCX: %s", exc)
 
-    # 2. Camada Secundária: MCI nativo do Windows
     try:
         buf = ctypes.create_unicode_buffer(300)
         ctypes.windll.kernel32.GetShortPathNameW(str(mp3_path), buf, 300)
@@ -119,7 +107,7 @@ def _play_mp3_native(mp3_path: Path, max_wait: float = 15.0) -> bool:
         if res == 0:
             winmm.mciSendStringW(f"play {alias}", None, 0, 0)
             t0 = time.time()
-            while time.time() - t0 < est_duration:
+            while time.time() - t0 < est_duration + 0.3:
                 _pump_win32_messages()
                 status = ctypes.create_unicode_buffer(64)
                 winmm.mciSendStringW(f"status {alias} mode", status, 64, 0)
@@ -135,7 +123,7 @@ def _play_mp3_native(mp3_path: Path, max_wait: float = 15.0) -> bool:
 
 
 class SafeNeuralSpeaker:
-    """Fila de fala assíncrona compatível com chamadas diretas."""
+    """Executor assíncrono para chamadas de fala sem bloquear a UI."""
 
     def __init__(self, tts_engine: object) -> None:
         self.tts_engine = tts_engine
@@ -159,7 +147,7 @@ NeuralSpeakerStream = SafeNeuralSpeaker
 
 
 class NeuralSpeaker(Speaker):
-    """Sintetizador com cadência acelerada (+16%), cache 0ms e reprodução contínua sem engasgos."""
+    """Sintetizador oficial do Jarvis (voz masculina pt-BR-AntonioNeural) com cache instantâneo."""
 
     def __init__(self, fallback: Speaker, on_start: Callable[[], None], on_end: Callable[[], None]) -> None:
         self._fallback, self._on_start, self._on_end = fallback, on_start, on_end
@@ -168,13 +156,6 @@ class NeuralSpeaker(Speaker):
         self.is_speaking = False
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self._stream = SafeNeuralSpeaker(self)
-        threading.Thread(target=self._prewarm_cache, name="tts-prewarm", daemon=True).start()
-
-    def _prewarm_cache(self) -> None:
-        for phrase in PREWARM_PHRASES:
-            path = self._get_cache_path(phrase)
-            if not path.exists() or path.stat().st_size == 0:
-                self._synthesize_edge(phrase, path)
 
     def set_voice(self, profile: str) -> bool:
         p = profile.lower()
@@ -205,34 +186,36 @@ class NeuralSpeaker(Speaker):
         return f"Neural Feminina ({DEFAULT_FEMALE_VOICE})" if self._voice == DEFAULT_FEMALE_VOICE else f"Neural Poliglota ({self._voice})"
 
     def _get_cache_path(self, text: str) -> Path:
-        digest = hashlib.md5(f"{self._voice}_{SPEECH_RATE}_{text.strip()}".encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.md5(f"{self._voice}_{text.strip()}".encode("utf-8")).hexdigest()[:16]
         return CACHE_DIR / f"tts_{digest}.mp3"
 
     def _synthesize_edge(self, text: str, out_path: Path) -> bool:
         if out_path.exists() and out_path.stat().st_size > 0:
             return True
+
         async def _run() -> None:
             import edge_tts
-            await edge_tts.Communicate(text, self._voice, rate=SPEECH_RATE).save(str(out_path))
-        try:
+            await edge_tts.Communicate(text, self._voice, rate="+8%").save(str(out_path))
+
+        for _ in range(3):
             loop = asyncio.new_event_loop()
             try:
-                loop.run_until_complete(asyncio.wait_for(_run(), timeout=3.0))
-                return out_path.exists() and out_path.stat().st_size > 0
+                loop.run_until_complete(asyncio.wait_for(_run(), timeout=6.5))
+                if out_path.exists() and out_path.stat().st_size > 0:
+                    return True
+            except Exception:
+                time.sleep(0.1)
             finally:
                 loop.close()
-        except Exception:
-            return False
+        return False
 
     def say(self, text: str) -> None:
-        """Sintetiza e reproduz a frase inteira com cadência rápida (+16%) sem pausas entre palavras."""
         clean = text.strip()
         if not clean:
             return
         with self._lock:
-            self.is_speaking = True
+            self.is_speaking, played = True, False
             cached_file = self._get_cache_path(clean)
-            played = False
             self._on_start()
             try:
                 if cached_file.exists() and cached_file.stat().st_size > 0:

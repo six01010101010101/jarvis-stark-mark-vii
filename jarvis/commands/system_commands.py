@@ -1,4 +1,4 @@
-"""Comandos de controle do sistema: abertura, fechamento e encerramento em tempo real."""
+"""Comandos de controle do sistema: abertura de jogos/programas e encerramento profundo de tarefas."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import random
 
 from jarvis.commands.registry import Command, CommandContext, Handler, Outcome
 from jarvis.contracts import LaunchError
-from jarvis.text_utils import normalize, text_after
+from jarvis.text_utils import normalize
 
 logger = logging.getLogger(__name__)
 
@@ -58,24 +58,31 @@ def _open_url(url: str, friendly_name: str) -> Handler:
 
 
 def _close_app(ctx: CommandContext, utterance: str) -> Outcome:
-    """Encerra um processo, fecha janela ou fecha aba do navegador."""
+    """Encerra profundamente um processo/jogo nas tarefas do sistema, ou fecha janela/aba."""
     norm = normalize(utterance)
-    if any(t in norm for t in ("aba", "guia", "site", "youtube", "instagram", "whatsapp")):
+    ignore = (
+        "eu", "gostaria", "quero", "que", "voce", "fechasse", "encerrasse", "feche",
+        "fechar", "fecha", "encerrar", "encerra", "finalizar", "finaliza", "finalizasse",
+        "matar", "mata", "terminar", "termina", "tarefa", "tarefas", "processo", "processos",
+        "sistema", "maquina", "fundo", "la", "bem", "no", "na", "do", "da", "dos", "das",
+        "o", "a", "os", "as", "um", "uma", "aplicativo", "programa", "app", "jogo",
+        "por", "favor", "agora", "ai", "para", "pra", "mim", "senhor", "jarvis",
+    )
+
+    if any(t in norm.split() for t in ("aba", "guia", "site")) or any(
+        s in norm for s in ("youtube", "instagram")
+    ):
         _send_shortcut(VK_CONTROL, 0x57)  # Ctrl + W
         ctx.reply("Aba do navegador encerrada, senhor.")
         return Outcome.CONTINUE
 
-    if "janela" in norm:
+    words = [w for w in norm.split() if w not in ignore and w != "janela"]
+    target = " ".join(words).strip()
+
+    if "janela" in norm and not target:
         _send_shortcut(VK_MENU, VK_F4)  # Alt + F4
         ctx.reply("Janela encerrada, senhor.")
         return Outcome.CONTINUE
-
-    ignore = (
-        "eu", "gostaria", "quero", "que", "voce", "fechasse", "encerrasse", "feche",
-        "fechar", "fecha", "encerrar", "encerra", "finalizar", "finaliza", "matar", "terminar",
-        "o", "a", "um", "uma", "aplicativo", "programa", "app", "jogo", "por", "favor", "do", "da",
-    )
-    target = " ".join([w for w in norm.split() if w not in ignore]).strip()
 
     if not target:
         ctx.reply("Ok, senhor, o que você gostaria que eu fechasse ou encerrasse?", pending_intent="close_app")
@@ -93,7 +100,9 @@ def _open_generic_app(ctx: CommandContext, utterance: str) -> Outcome:
     ignore = (
         "eu", "gostaria", "quero", "que", "voce", "abrisse", "executasse", "abra",
         "abrir", "abre", "iniciar", "inicia", "executar", "executa", "rodar", "roda",
-        "colocar", "coloca", "o", "a", "no", "na", "um", "uma", "aplicativo", "programa", "app", "jogo", "janela", "do", "da",
+        "colocar", "coloca", "o", "a", "os", "as", "no", "na", "um", "uma", "aplicativo",
+        "programa", "app", "jogo", "janela", "do", "da", "por", "favor", "agora",
+        "ai", "para", "pra", "mim", "senhor", "jarvis",
     )
     target = " ".join([w for w in words if w not in ignore]).strip()
     if not target:
@@ -108,7 +117,7 @@ def _open_generic_app(ctx: CommandContext, utterance: str) -> Outcome:
 
 
 def _take_screenshot(ctx: CommandContext, _utterance: str) -> Outcome:
-    """Captura a tela atual e salva na pasta Imagens (repositório Jarvis-Desktop-Voice-Assistant)."""
+    """Captura a tela atual e salva na pasta Imagens."""
     pics_dir = Path.home() / "Pictures"
     pics_dir.mkdir(parents=True, exist_ok=True)
     out_file = pics_dir / f"jarvis_screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -150,18 +159,21 @@ def _adjust_mic_sensitivity(ctx: CommandContext, utterance: str) -> Outcome:
 
 
 def close_commands() -> list[Command]:
-    """Comandos de fechamento prioritários (antes de mídia/redes sociais)."""
+    """Comandos de fechamento e finalização de tarefas prioritários."""
     return [
         Command(
             "fechar app",
-            ("fechar", "fecha", "feche", "fechasse", "encerrar", "encerra", "encerrasse", "finalizar", "finaliza", "matar", "terminar"),
+            (
+                "fechar", "fecha", "feche", "fechasse", "encerrar", "encerra", "encerrasse",
+                "finalizar", "finaliza", "finalizasse", "matar", "terminar", "termina",
+            ),
             _close_app,
         ),
     ]
 
 
 def system_commands() -> list[Command]:
-    """Retorna comandos de sistema, processos e aplicativos do Windows."""
+    """Retorna comandos de sistema, processos, jogos e aplicativos do Windows."""
     return [
         *close_commands(),
         Command("captura de tela", ("captura de tela", "tirar print", "screenshot", "print da tela"), _take_screenshot),

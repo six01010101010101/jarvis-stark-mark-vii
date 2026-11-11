@@ -65,7 +65,7 @@ def presence_commands() -> list[Command]:
         Command("saudacao_tarde", ("boa tarde jarvis", "boa tarde"), _greeting_afternoon),
         Command(
             "como_vai",
-            ("como vai", "tudo bem", "como voce esta", "como esta seu dia", "como estao as coisas"),
+            ("como vai", "tudo bem", "como vai voce", "como esta seu dia", "como estao as coisas"),
             _status_inquiry,
         ),
     ]

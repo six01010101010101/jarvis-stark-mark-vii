@@ -1,4 +1,4 @@
-"""Orquestração Blindada: Desempacotamento Seguro, Wake Word Imediata, Ciclo de Paciência e Diagnóstico Ao Vivo."""
+"""Orquestração Blindada: Desempacotamento Seguro, Wake Word Imediata, Ciclo de Paciência e Conversa Ao Vivo."""
 
 from __future__ import annotations
 
@@ -39,9 +39,7 @@ class RobustVoicePipeline:
 
     def on_audio_captured(self, raw_transcription_result: object) -> Outcome:
         text, _ = self.unpack_transcription(raw_transcription_result)
-        if not text:
-            return Outcome.CONTINUE
-        return self.assistant.handle_phrase(text)
+        return self.assistant.handle_phrase(text) if text else Outcome.CONTINUE
 
 
 class Assistant:
@@ -77,14 +75,12 @@ class Assistant:
     def introduce(self) -> None:
         if self._sounds:
             self._sounds.play_boot()
-
         if self._terminal and hasattr(self._terminal, "print_hud_banner"):
             self._terminal.print_hud_banner(
                 getattr(self._wake_listener, "device_name", "Microfone Padrão"),
                 getattr(self._wake_listener, "sample_rate", 16000),
                 getattr(self._wake_listener, "_device_index", None),
             )
-
         if self._ctx.memory and hasattr(self._ctx.memory, "record_telemetry_snapshot"):
             threading.Thread(target=self._record_initial_telemetry, name="telemetry-init-async", daemon=True).start()
 
@@ -92,6 +88,8 @@ class Assistant:
         intro_text = self._choose(TONY_STARK_GREETINGS).format(greeting=greeting, user=self._user_name)
         print(f"\n[CMD-JARVIS] 🤖 Saudação Inicial: \"{intro_text}\"", flush=True)
         self._ctx.view.show_status(intro_text)
+        if hasattr(self._ctx.view, "append_chat"):
+            self._ctx.view.append_chat("assistant", intro_text)
         t_intro = threading.Thread(target=self._ctx.speaker.say, args=(intro_text,), daemon=True)
         t_intro.start()
         t_intro.join(timeout=0.05)
@@ -99,11 +97,7 @@ class Assistant:
     def _record_initial_telemetry(self) -> None:
         try:
             snap = self._ctx.memory.record_telemetry_snapshot()  # type: ignore[union-attr]
-            print(
-                f"[TELEMETRIA-SQLITE] 📊 RAM: {snap.get('ram_used_gb')}GB usada / "
-                f"{snap.get('ram_free_gb')}GB livre | Disco C: {snap.get('disk_free_gb')}GB livre",
-                flush=True,
-            )
+            print(f"[TELEMETRIA-SQLITE] 📊 RAM: {snap.get('ram_used_gb')}GB usada | Disco C: {snap.get('disk_free_gb')}GB livre", flush=True)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Telemetria inicial indisponível: %s", exc)
 
@@ -144,7 +138,7 @@ class Assistant:
         return outcome
 
     def handle_phrase(self, phrase: str | tuple[str, str]) -> Outcome:
-        """Processa a fala com desempacotamento seguro de tupla, diagnóstico ao vivo e Ciclo de Paciência."""
+        """Processa a fala com desempacotamento seguro, conversa ao vivo e Ciclo de Paciência."""
         raw_text, _ = unpack_transcription(phrase)
         if not raw_text:
             return Outcome.CONTINUE
@@ -153,26 +147,16 @@ class Assistant:
         is_wake, inline_cmd = extract_wake_and_command(corrected, self._wake_word)
         in_patience = self._session.should_listen_without_wake_word()
         state = GLOBAL_STATE_MACHINE.current_state.value
-
-        print(
-            f"[DEBUG VOZ] Ouvi: '{corrected}' | WakeDetected: {is_wake} | Estado: {state} | Paciência: {in_patience}",
-            flush=True,
-        )
+        print(f"[DEBUG VOZ] Ouvi: '{corrected}' | WakeDetected: {is_wake} | Estado: {state} | Paciência: {in_patience}", flush=True)
 
         if self._strict_wake and not is_wake and not in_patience:
             self._feedback.ignored_in_standby(corrected)
             return Outcome.CONTINUE
 
-        threading.Thread(
-            target=self._async_persist_user_message,
-            args=(corrected,),
-            name="user-msg-async",
-            daemon=True,
-        ).start()
-        print(
-            f"📋 [LOG CMD 3/4 - LEITURA DO JARVIS & SQLITE] Jarvis leu: \"{corrected}\" -> Fire-and-Forget!",
-            flush=True,
-        )
+        if hasattr(self._ctx.view, "append_chat"):
+            self._ctx.view.append_chat("user", corrected)
+
+        threading.Thread(target=self._async_persist_user_message, args=(corrected,), name="user-msg-async", daemon=True).start()
 
         if self._session.is_close_phrase(corrected):
             self._session.close_dialogue()
@@ -181,7 +165,6 @@ class Assistant:
             self._feedback.sync(dialogue_active=False)
             return Outcome.CONTINUE
 
-        # Caso 1: Usuário falou apenas "Jarvis" -> Sinal verde + Som Stark + Resposta imediata + Ciclo de Paciência (10s)
         if is_wake and not inline_cmd:
             self._feedback.wake_heard(corrected)
             self._session.start_dialogue(awaiting_answer=True)
@@ -191,7 +174,6 @@ class Assistant:
             self._feedback.dialogue_open()
             return Outcome.CONTINUE
 
-        # Caso 2: Usuário falou "Jarvis, <comando>" ou falou dentro da janela de paciência
         if is_wake:
             self._feedback.wake_heard(corrected)
         cmd_text = inline_cmd if (is_wake and inline_cmd) else corrected
@@ -234,11 +216,9 @@ class Assistant:
                         break
                 except MicrophoneError as mic_err:
                     GLOBAL_STATE_MACHINE.transition_to(AssistantState.ERROR, "mic_unavailable")
-                    logger.warning("Microfone indisponível: %s", mic_err)
                     self._ctx.view.show_status(f"Reconectando microfone: {mic_err}")
                 except Exception as exc:  # noqa: BLE001
                     GLOBAL_STATE_MACHINE.transition_to(AssistantState.ERROR, str(exc))
-                    logger.exception("Erro no ciclo do assistente: %s", exc)
                     self._ctx.view.show_status(f"Alerta no ciclo: {exc}")
         finally:
             self._stop.set()

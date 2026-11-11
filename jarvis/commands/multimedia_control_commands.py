@@ -61,6 +61,12 @@ def _prev_track(ctx: CommandContext, _utterance: str) -> Outcome:
     return Outcome.CONTINUE
 
 
+def _screenshot(ctx: CommandContext, _utterance: str) -> Outcome:
+    _tap_key(VK_SNAPSHOT)
+    ctx.reply("Captura de tela copiada para a área de transferência, senhor.")
+    return Outcome.CONTINUE
+
+
 def multimedia_control_commands() -> list[Command]:
     """Retorna comandos de controle de som e reprodução de mídia."""
     return [
@@ -70,4 +76,5 @@ def multimedia_control_commands() -> list[Command]:
         Command("media_play_pause", ("pausar musica", "pausar video", "despausar", "continuar musica", "play musica", "pausar midia"), _play_pause),
         Command("media_next", ("proxima musica", "pular musica", "avancar musica", "proxima faixa"), _next_track),
         Command("media_prev", ("musica anterior", "voltar musica", "faixa anterior"), _prev_track),
+        Command("screenshot", ("tirar print", "capturar tela", "screenshot", "print screen"), _screenshot),
     ]

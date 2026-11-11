@@ -51,6 +51,7 @@ class JarvisApplication:
         self._listener: GoogleSpeechListener | None = None
         self._session: ConversationSession | None = None
         self._gemini: GeminiAnswerService | None = None
+        self._assistant: Assistant | None = None
         self._window = JarvisWindow(
             root,
             on_start=self.start,
@@ -59,8 +60,15 @@ class JarvisApplication:
             on_sensitivity_change=self._handle_sensitivity_change,
             on_patience_change=self._handle_patience_change,
             on_language_change=self._handle_language_change,
+            on_text_command=self._handle_text_command,
         )
         root.protocol("WM_DELETE_WINDOW", lambda: self._close(root))
+
+    def _handle_text_command(self, text: str) -> None:
+        if not self._assistant:
+            return
+        phrase = text if "jarvis" in text.lower() else f"jarvis {text}"
+        threading.Thread(target=self._assistant.handle_phrase, args=(phrase,), daemon=True).start()
 
     def _handle_voice_change(self, profile: str) -> None:
         if self._speaker and hasattr(self._speaker, "set_voice"):
@@ -156,7 +164,7 @@ class JarvisApplication:
                 cognitive=cognitive,
                 session=session,
             )
-            Assistant(
+            self._assistant = Assistant(
                 ctx=ctx,
                 wake_listener=speech_listener,
                 registry=build_registry(cache=intent_cache),
@@ -168,7 +176,8 @@ class JarvisApplication:
                 session=session,
                 terminal=terminal,
                 feedback=feedback,
-            ).run()
+            )
+            self._assistant.run()
         except Exception as exc:
             logger.exception("Falha ao inicializar o assistente: %s", exc)
             self._window.mark_stopped(error_message=f"Erro: {exc}")

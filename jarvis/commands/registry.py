@@ -70,6 +70,8 @@ class CommandContext:
         print(f"📋 [LOG CMD 4/4 - RESPOSTA DO JARVIS] 🤖 J.A.R.V.I.S.: \"{text}\"", flush=True)
         print("==========================================================================\n", flush=True)
         self.view.show_status(text)
+        if hasattr(self.view, "append_chat"):
+            self.view.append_chat("assistant", text)
 
         if self.session and hasattr(self.session, "mark_interaction"):
             is_question = text.strip().endswith("?")
