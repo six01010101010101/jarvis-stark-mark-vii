@@ -63,9 +63,16 @@ class PhoneticEngine:
             "fecha": "fechar", "encerra": "encerrar", "toca": "tocar",
             "pesquise": "pesquisar", "navegador": "chrome",
             "chave": "jarvis", "chaves": "jarvis", "javi": "jarvis", "jardis": "jarvis", "charles": "jarvis",
+            "jarves": "jarvis", "jarvi": "jarvis", "djarvis": "jarvis", "javis": "jarvis",
         }
         if alias_map:
             self._aliases.update(alias_map)
+
+    def contains_wake_word(self, text: str) -> tuple[bool, str]:
+        """Verifica se 'Jarvis' (ou variação fonética) está presente e retorna (is_wake, comando_restante)."""
+        from jarvis.text_utils import extract_wake_and_command
+        normalized_text = self.normalize_utterance(str(text))
+        return extract_wake_and_command(normalized_text, "jarvis")
 
     def normalize_utterance(self, utterance: str) -> str:
         """Aplica correções fonéticas imediatas palavra por palavra."""

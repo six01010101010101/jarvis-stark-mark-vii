@@ -1,4 +1,4 @@
-"""Motor de escuta contínua 24/7 em thread dedicada com VAD Adaptativo e log no CMD."""
+"""Motor de escuta contínua 24/7 em thread dedicada com VAD Adaptativo, Desempacotamento Seguro e Log CMD."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import speech_recognition as sr
 
 from jarvis.speech.audio_stream import list_input_devices, pick_default_device_index
 from jarvis.speech.metered_stream import MeteredAudioStream
-from jarvis.speech.transcriber import MultiEngineTranscriber
+from jarvis.speech.transcriber import MultiEngineTranscriber, unpack_transcription
 from jarvis.speech.vad_recorder import AdaptiveVadRecorder
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,6 @@ class GoogleSpeechListener:
         self._stop_event = threading.Event()
         self._reopen_event = threading.Event()
         self._lock = threading.Lock()
-        self._vpn_mode = False
         self._switched_default = False
         self._phrase_queue: queue.Queue[tuple[sr.AudioData | None, str | None, float, int]] = queue.Queue()
 
@@ -78,11 +77,11 @@ class GoogleSpeechListener:
             logger.warning("🎙️ [LISTENER] Falha na porta [%s] (%s), usando padrão.", self._device_index, exc)
             try:
                 self._mic = sr.Microphone(device_index=None)
-            except Exception:
+            except Exception as fallback_exc:
+                logger.error("Falha ao abrir microfone padrão: %s", fallback_exc)
                 self._mic = None
 
     def set_device(self, device_index: int) -> bool:
-        """Altera o microfone ativo em tempo real."""
         with self._lock:
             self._device_index = device_index
             self._switched_default = False
@@ -91,15 +90,12 @@ class GoogleSpeechListener:
             return self._mic is not None
 
     def set_sensitivity(self, value: float) -> None:
-        """Altera a sensibilidade do microfone em tempo real."""
         self._vad.set_sensitivity(value)
 
     def set_language(self, lang_code: str) -> None:
-        """Altera o idioma de reconhecimento ('auto', 'pt', 'en', 'es', 'ja', 'fr', 'de', 'it')."""
         self._transcriber.set_language_mode(lang_code)
 
     def _capture_loop(self) -> None:
-        """Thread dedicada que lê o microfone sem pausas e atualiza o medidor VU em tempo real."""
         while not self._stop_event.is_set():
             if self._mic is None:
                 self._init_microphone()
@@ -141,11 +137,13 @@ class GoogleSpeechListener:
                         if typed or audio is not None:
                             self._phrase_queue.put((audio, typed, dur, peak_rms))
             except Exception as exc:
-                logger.debug("Reabrindo fluxo de microfone: %s", exc)
+                logger.warning("Reabrindo fluxo de microfone após oscilação: %s", exc)
+                if self._on_status:
+                    self._on_status(f"Reconectando áudio: {exc}")
                 time.sleep(0.2)
 
     def listen(self, idle_timeout: float = 1.0) -> str | None:
-        """Consome frases da thread de captura; retorna None após `idle_timeout` s sem fala."""
+        """Consome frases da thread de captura; garante retorno str desempacotado."""
         deadline = time.monotonic() + idle_timeout
         while not self._stop_event.is_set() and time.monotonic() < deadline:
             try:
@@ -154,10 +152,11 @@ class GoogleSpeechListener:
                 continue
 
             if typed:
+                clean_typed, _ = unpack_transcription(typed)
                 print("\n==========================================================================", flush=True)
-                print(f"📋 [LOG CMD 1/4 - ENTRADA CAPTADA] Digitado no CMD: \"{typed}\"", flush=True)
-                print(f"📋 [LOG CMD 2/4 - LEITURA DA SUA FALA] Você disse: \"{typed}\" (Motor: Teclado-CMD)", flush=True)
-                return typed
+                print(f"📋 [LOG CMD 1/4 - ENTRADA CAPTADA] Digitado no CMD: \"{clean_typed}\"", flush=True)
+                print(f"📋 [LOG CMD 2/4 - LEITURA DA SUA FALA] Você disse: \"{clean_typed}\" (Motor: Teclado-CMD)", flush=True)
+                return clean_typed
 
             if audio is None:
                 continue
@@ -171,7 +170,15 @@ class GoogleSpeechListener:
             if self._on_status:
                 self._on_status("🧠 Processando sua voz...")
 
-            text, engine = self._transcriber.transcribe(audio)
+            try:
+                raw_res = self._transcriber.transcribe(audio)
+                text, engine = unpack_transcription(raw_res)
+            except Exception as exc:
+                logger.error("Erro na transcrição: %s", exc)
+                if self._on_status:
+                    self._on_status(f"Erro STT: {exc}")
+                text, engine = "", "Erro"
+
             if text:
                 if self._on_language_detected:
                     self._on_language_detected(self._transcriber.last_detected_language)
@@ -190,5 +197,4 @@ class GoogleSpeechListener:
             self._on_status(f"Você disse: '{text}'")
 
     def close(self) -> None:
-        """Encerra o ouvinte."""
         self._stop_event.set()

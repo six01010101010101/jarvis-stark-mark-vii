@@ -38,6 +38,19 @@ NOISE_HALLUCINATIONS: set[str] = {
 }
 
 
+def unpack_transcription(raw_result: object) -> tuple[str, str]:
+    """Desempacota de forma segura qualquer saída do transcriber (tuple, dict ou str) para (texto, idioma)."""
+    if raw_result is None:
+        return "", "pt"
+    if isinstance(raw_result, tuple):
+        text = str(raw_result[0] or "").strip() if len(raw_result) > 0 else ""
+        lang = str(raw_result[1] or "pt").strip() if len(raw_result) > 1 else "pt"
+        return text, lang
+    if isinstance(raw_result, dict):
+        return str(raw_result.get("text", "")).strip(), str(raw_result.get("lang", "pt")).strip()
+    return str(raw_result).strip(), "pt"
+
+
 def is_valid_human_transcription(text: str) -> bool:
     """Descarta transcrições com < 2 caracteres alfabéticos ou alucinações de ruído."""
     if not text:

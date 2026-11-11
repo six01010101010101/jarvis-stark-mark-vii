@@ -29,6 +29,11 @@ class WakeFeedback:
         self._state: str | None = None
         self._lock = threading.Lock()
 
+    def play(self) -> None:
+        """Toca imediatamente o efeito sonoro de confirmação da wake word (stark_wake.wav)."""
+        if self._sounds:
+            self._sounds.play_wake()
+
     def wake_heard(self, heard: str) -> None:
         """Acende o sinal verde e registra no CMD que o nome 'Jarvis' foi reconhecido."""
         print(f"\n{_GREEN}{_LINE}", flush=True)

@@ -1,4 +1,4 @@
-"""Orquestração do assistente: ativação por 'Jarvis', Ciclo de Paciência (10s) e DB Fire-and-Forget."""
+"""Orquestração Blindada: Desempacotamento Seguro, Wake Word Imediata, Ciclo de Paciência e Diagnóstico Ao Vivo."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from jarvis.services.stark_personality import TONY_STARK_GREETINGS, WAKE_PROMPT,
 from jarvis.services.telemetry_state_machine import AssistantState, GLOBAL_STATE_MACHINE
 from jarvis.services.wake_feedback import WakeFeedback
 from jarvis.speech.listener import MicrophoneError
+from jarvis.speech.transcriber import unpack_transcription
 from jarvis.text_utils import extract_wake_and_command, normalize, split_compound_commands
 
 if TYPE_CHECKING:
@@ -24,6 +25,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 CLOSE_REPLY = "Às suas ordens, senhor. Conversa encerrada."
+
+
+class RobustVoicePipeline:
+    """Pipeline de voz blindado contra erros de tupla, garantindo resposta em 100% das chamadas a 'Jarvis'."""
+
+    def __init__(self, assistant: Assistant) -> None:
+        self.assistant = assistant
+
+    @staticmethod
+    def unpack_transcription(raw_result: object) -> tuple[str, str]:
+        return unpack_transcription(raw_result)
+
+    def on_audio_captured(self, raw_transcription_result: object) -> Outcome:
+        text, _ = self.unpack_transcription(raw_transcription_result)
+        if not text:
+            return Outcome.CONTINUE
+        return self.assistant.handle_phrase(text)
 
 
 class Assistant:
@@ -54,6 +72,7 @@ class Assistant:
         self._terminal, self._clock, self._choose = terminal, clock, choose
         self._feedback = feedback or WakeFeedback(sounds=sounds)
         self._last_mode: bool | None = None
+        self.pipeline = RobustVoicePipeline(self)
 
     def introduce(self) -> None:
         if self._sounds:
@@ -67,11 +86,7 @@ class Assistant:
             )
 
         if self._ctx.memory and hasattr(self._ctx.memory, "record_telemetry_snapshot"):
-            threading.Thread(
-                target=self._record_initial_telemetry,
-                name="telemetry-init-async",
-                daemon=True,
-            ).start()
+            threading.Thread(target=self._record_initial_telemetry, name="telemetry-init-async", daemon=True).start()
 
         greeting = greeting_for(self._clock().hour)
         intro_text = self._choose(TONY_STARK_GREETINGS).format(greeting=greeting, user=self._user_name)
@@ -90,10 +105,9 @@ class Assistant:
                 flush=True,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Telemetria inicial indisponível: %s", exc)
+            logger.warning("Telemetria inicial indisponível: %s", exc)
 
     def _async_persist_user_message(self, text: str) -> None:
-        """Grava fala do usuário no SQLite, Supabase e arquivo em background (Fire-and-Forget)."""
         from jarvis.commands.privacy_commands import is_private_mode
         from jarvis.services.rolling_transcript import GLOBAL_TRANSCRIPT
 
@@ -111,10 +125,9 @@ class Assistant:
             else:
                 self._ctx.messages.save(text)
         except Exception as exc:
-            logger.debug("Aviso ao salvar transcrição: %s", exc)
+            logger.warning("Aviso ao salvar transcrição: %s", exc)
 
     def _on_speech_finished(self) -> None:
-        """Aciona o Ciclo de Paciência (10s) assim que o Jarvis termina de falar."""
         self._session.activate_patience_window()
         GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
         self._ctx.view.show_status(f"🟢 CICLO DE PACIÊNCIA ({int(self._session.patience_seconds)}s) // PODE FALAR")
@@ -130,16 +143,26 @@ class Assistant:
             self._sounds.play_ping()
         return outcome
 
-    def handle_phrase(self, phrase: str) -> Outcome:
-        """Processa a fala com persistência Fire-and-Forget e Ciclo de Paciência Inteligente."""
-        corrected = self._corrector.correct(phrase) if self._corrector else phrase
-        is_wake, inline_cmd = extract_wake_and_command(corrected, self._wake_word)
+    def handle_phrase(self, phrase: str | tuple[str, str]) -> Outcome:
+        """Processa a fala com desempacotamento seguro de tupla, diagnóstico ao vivo e Ciclo de Paciência."""
+        raw_text, _ = unpack_transcription(phrase)
+        if not raw_text:
+            return Outcome.CONTINUE
 
-        if self._strict_wake and not is_wake and not self._session.should_listen_without_wake_word():
+        corrected = self._corrector.correct(raw_text) if self._corrector else raw_text
+        is_wake, inline_cmd = extract_wake_and_command(corrected, self._wake_word)
+        in_patience = self._session.should_listen_without_wake_word()
+        state = GLOBAL_STATE_MACHINE.current_state.value
+
+        print(
+            f"[DEBUG VOZ] Ouvi: '{corrected}' | WakeDetected: {is_wake} | Estado: {state} | Paciência: {in_patience}",
+            flush=True,
+        )
+
+        if self._strict_wake and not is_wake and not in_patience:
             self._feedback.ignored_in_standby(corrected)
             return Outcome.CONTINUE
 
-        # Persistência Fire-and-Forget em thread daemon (0ms de bloqueio)
         threading.Thread(
             target=self._async_persist_user_message,
             args=(corrected,),
@@ -158,14 +181,17 @@ class Assistant:
             self._feedback.sync(dialogue_active=False)
             return Outcome.CONTINUE
 
+        # Caso 1: Usuário falou apenas "Jarvis" -> Sinal verde + Som Stark + Resposta imediata + Ciclo de Paciência (10s)
         if is_wake and not inline_cmd:
             self._feedback.wake_heard(corrected)
             self._session.start_dialogue(awaiting_answer=True)
             self._ctx.reply(self._choose(WAKE_RESPONSES) if WAKE_RESPONSES else WAKE_PROMPT)
             self._session.start_dialogue(awaiting_answer=True)
+            self._session.activate_patience_window()
             self._feedback.dialogue_open()
             return Outcome.CONTINUE
 
+        # Caso 2: Usuário falou "Jarvis, <comando>" ou falou dentro da janela de paciência
         if is_wake:
             self._feedback.wake_heard(corrected)
         cmd_text = inline_cmd if (is_wake and inline_cmd) else corrected
@@ -209,9 +235,10 @@ class Assistant:
                 except MicrophoneError as mic_err:
                     GLOBAL_STATE_MACHINE.transition_to(AssistantState.ERROR, "mic_unavailable")
                     logger.warning("Microfone indisponível: %s", mic_err)
-                    self._ctx.view.show_status("Reconectando microfone...")
+                    self._ctx.view.show_status(f"Reconectando microfone: {mic_err}")
                 except Exception as exc:  # noqa: BLE001
                     GLOBAL_STATE_MACHINE.transition_to(AssistantState.ERROR, str(exc))
                     logger.exception("Erro no ciclo do assistente: %s", exc)
+                    self._ctx.view.show_status(f"Alerta no ciclo: {exc}")
         finally:
             self._stop.set()
