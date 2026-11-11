@@ -79,6 +79,12 @@ def extract_wake_and_command(utterance: str, _wake_word: str = "jarvis") -> tupl
     first_wake = wake_indices[0]
     after = tokens[first_wake + 1:]
     before = tokens[:first_wake]
+
+    # Se a palavra Jarvis é o sujeito/objeto de pergunta (ex: "o que é o Jarvis?"), não remove a palavra
+    is_q = any(q in norm for q in ("o que", "quem", "como", "por que", "qual", "seria", "funciona", "explica", "acha")) or "?" in utterance
+    if before and not after and is_q:
+        return True, norm
+
     remaining = after if after else before
 
     while remaining and remaining[0] in GREETING_PREFIXES:

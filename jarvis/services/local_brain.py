@@ -64,10 +64,11 @@ def _resolve_companion_dialogue(norm: str) -> str | None:
             "Na minha visão, a vida vale pela curiosidade de aprender todos os dias, construir projetos que te dão orgulho "
             "e ter bons amigos por perto. E nisso formamos uma dupla imbatível, Ken."
         )
-    if any(w in norm for w in ("quem e voce", "qual sua historia", "como voce nasceu", "voce sente", "tem sentimentos")):
+    if any(w in norm for w in ("quem e voce", "o que e o jarvis", "quem e o jarvis", "o que seria o jarvis", "como voce funciona", "qual sua historia")):
         return (
-            "Sou o Jarvis, sua inteligência companheira. Tenho minha própria personalidade, curiosidade pelo mundo "
-            "e um apreço enorme pela nossa amizade, sempre pronto para pensar junto com você."
+            "Eu sou o J.A.R.V.I.S., sigla para Just A Rather Very Intelligent System, operando na arquitetura Mark Sete. "
+            "Inspirado na inteligência artificial criada por Tony Stark, gerencio multitarefas na sua GPU RTX 4060, Máquina Virtual "
+            "e Banco de Dados Central em tempo real, atuando como seu parceiro estratégico de raciocínio. O que vamos analisar agora, senhor?"
         )
     if any(w in norm for w in ("sugestao", "sugere", "sugerir", "dica", "ideia", "recomenda", "entediado")):
         return (

@@ -92,3 +92,12 @@ class SupabaseSyncService:
             )
 
         threading.Thread(target=_worker, name="supabase-sync-art", daemon=True).start()
+
+    def sync_episodic_async(self, role: str, content: str, intent_type: str = "dialogue", lang: str = "pt") -> None:
+        if not self.is_configured:
+            return
+
+        def _worker() -> None:
+            self._post("jarvis_episodic_conversations", {"role": role, "content": content, "intent_type": intent_type, "language": lang})
+
+        threading.Thread(target=_worker, name="supabase-sync-episodic", daemon=True).start()

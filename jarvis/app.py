@@ -19,10 +19,12 @@ from jarvis.repositories.memory_repository import MemoryRepository
 from jarvis.services.audio_effects import StarkSoundPlayer
 from jarvis.services.autostart import disable_autostart
 from jarvis.services.cognitive_engine import CognitiveEngine
+from jarvis.services.collective_mind import JarvisCollectiveMind
 from jarvis.services.conversation_session import ConversationSession
 from jarvis.services.gemini_service import GeminiAnswerService
 from jarvis.services.github_sync import sync_project_async
 from jarvis.services.intent_cache import IntentCache
+from jarvis.services.jarvis_api_server import JarvisLiveAPIServer
 from jarvis.services.launcher import WindowsLauncher
 from jarvis.services.message_store import TextFileMessageStore
 from jarvis.services.process_manager import WindowsProcessManager
@@ -59,10 +61,7 @@ class JarvisApplication:
 
     def _handle_interrupt(self) -> None:
         if self._speaker and hasattr(self._speaker, "stop"):
-            try:
-                self._speaker.stop()
-            except Exception:
-                pass
+            self._speaker.stop()
         if self._session and hasattr(self._session, "close_dialogue"):
             self._session.close_dialogue()
         if self._assistant and hasattr(self._assistant, "stop"):
@@ -138,6 +137,8 @@ class JarvisApplication:
             gemini = GeminiAnswerService(settings.gemini_api_key, settings.gemini_model)
             self._gemini = gemini
             cognitive = CognitiveEngine(gemini, artifact_repo)
+            mind = JarvisCollectiveMind(repo=memory_repo, gemini_service=gemini)
+            JarvisLiveAPIServer(mind=mind, port=8765).start_in_background()
 
             self._listener = GoogleSpeechListener(
                 language=settings.language, is_speaking=lambda: self._window.is_speaking,
