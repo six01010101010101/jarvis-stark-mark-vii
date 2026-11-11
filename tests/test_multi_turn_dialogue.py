@@ -92,3 +92,21 @@ def test_closing_phrase_gracefully_terminates_session() -> None:
     assert ast.handle_phrase("valeu jarvis") is Outcome.CONTINUE
     assert session.is_active() is False
     assert ctx.speaker.spoken[-1] == "Às suas ordens, senhor. Conversa encerrada."  # type: ignore[attr-defined]
+
+
+def test_answering_question_closes_dialogue_and_ignores_external_side_talk() -> None:
+    session = ConversationSession(timeout_seconds=30.0)
+    ast, ctx = _build_test_assistant(session)
+
+    # 1. Usuário chama Jarvis e pergunta se ele está bem
+    ast.handle_phrase("jarvis")
+    assert session.is_active() is True
+    ast.handle_phrase("voce esta bem")
+
+    # 2. Assim que Jarvis responde à pergunta, encerra a escuta aberta para não ouvir conversas externas
+    assert session.is_active() is False
+    spoken_count = len(ctx.speaker.spoken)  # type: ignore[attr-defined]
+
+    # 3. Conversa paralela com outra pessoa sem dizer 'Jarvis' é 100% ignorada
+    ast.handle_phrase("mae ja estou indo jantar")
+    assert len(ctx.speaker.spoken) == spoken_count  # type: ignore[attr-defined]

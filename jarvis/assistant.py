@@ -122,9 +122,9 @@ class Assistant:
             logger.warning("Aviso ao salvar transcrição: %s", exc)
 
     def _on_speech_finished(self) -> None:
-        self._session.activate_patience_window()
-        GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
-        self._ctx.view.show_status(f"🟢 CICLO DE PACIÊNCIA ({int(self._session.patience_seconds)}s) // PODE FALAR")
+        self._session.close_dialogue()
+        GLOBAL_STATE_MACHINE.transition_to(AssistantState.LISTENING, "standby_wake_word")
+        self._ctx.view.show_status("EM ESPERA // DIGA \"JARVIS\" PARA ATIVAR")
 
     def _execute_command_or_compound(self, command_text: str) -> Outcome:
         GLOBAL_STATE_MACHINE.transition_to(AssistantState.PROCESSING, "executing_command")
@@ -180,11 +180,12 @@ class Assistant:
         resolved_cmd = self._session.resolve_utterance_with_pending(cmd_text)
         outcome = self._execute_command_or_compound(resolved_cmd)
 
-        if self._session.is_awaiting_answer():
+        if self._session.get_pending_intent() is not None or self._session.is_awaiting_answer():
+            self._session.activate_patience_window()
             self._feedback.dialogue_open()
         else:
             self._on_speech_finished()
-            self._feedback.sync(dialogue_active=self._session.is_active())
+            self._feedback.sync(dialogue_active=False)
         return outcome
 
     def _refresh_mode(self) -> None:

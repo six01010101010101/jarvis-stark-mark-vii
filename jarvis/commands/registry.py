@@ -74,8 +74,8 @@ class CommandContext:
             self.view.append_chat("assistant", text)
 
         if self.session and hasattr(self.session, "mark_interaction"):
-            is_question = text.strip().endswith("?")
-            self.session.mark_interaction(awaiting_answer=is_question, pending_intent=pending_intent)
+            needs_followup = pending_intent is not None
+            self.session.mark_interaction(awaiting_answer=needs_followup, pending_intent=pending_intent)
 
         # 1. Gravação Fire-and-Forget no SQLite e Supabase em thread daemon
         threading.Thread(target=self._persist_reply_async, args=(text,), name="reply-db-async", daemon=True).start()
@@ -83,10 +83,12 @@ class CommandContext:
         # 2. Disparo imediato da voz (Prioridade Zero!)
         self.speaker.say(text)
 
-        # 3. Inicia o Ciclo de Paciência (10s) pós-fala
-        if self.session and hasattr(self.session, "activate_patience_window"):
+        # 3. Mantém escuta ativa apenas se houver intenção pendente aguardando complemento
+        if pending_intent is not None and self.session and hasattr(self.session, "activate_patience_window"):
             self.session.activate_patience_window()
-        GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
+            GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
+        else:
+            GLOBAL_STATE_MACHINE.transition_to(AssistantState.LISTENING, "turn_completed")
 
 
 Handler = Callable[[CommandContext, str], Outcome]
