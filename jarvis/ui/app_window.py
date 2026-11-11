@@ -10,6 +10,7 @@ from typing import Callable
 
 from jarvis.ui import theme
 from jarvis.ui.audio_meter import StarkMicControlPanel
+from jarvis.ui.hud_top_bar import HudTopBar
 from jarvis.ui.wake_indicator import WakeIndicator
 
 
@@ -28,16 +29,11 @@ class JarvisWindow:
         on_text_command: Callable[[str], None] | None = None,
         on_interrupt: Callable[[], None] | None = None,
     ) -> None:
-        self._root = root
-        self._on_start = on_start
-        self._on_voice_change = on_voice_change
-        self._on_device_selected = on_device_selected
-        self._on_sensitivity_change = on_sensitivity_change
-        self._on_patience_change = on_patience_change
-        self._on_language_change = on_language_change
-        self._on_text_command = on_text_command
-        self._on_interrupt = on_interrupt
-        self._speaking = threading.Event()
+        self._root, self._on_start = root, on_start
+        self._on_voice_change, self._on_device_selected = on_voice_change, on_device_selected
+        self._on_sensitivity_change, self._on_patience_change = on_sensitivity_change, on_patience_change
+        self._on_language_change, self._on_text_command, self._on_interrupt = on_language_change, on_text_command, on_interrupt
+        self._speaking, self._theme_mode = threading.Event(), "dark"
         self._is_active, self._angle_y, self._pulse_val = False, 0.0, 0.0
 
         root.title(theme.WINDOW_TITLE)
@@ -45,13 +41,13 @@ class JarvisWindow:
         root.configure(bg=theme.BG_COLOR)
 
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-        root.geometry(f"{theme.WINDOW_GEOMETRY}+{max(0, (sw - 480) // 2)}+{max(0, (sh - 880) // 2)}")
+        root.geometry(f"{theme.WINDOW_GEOMETRY}+{max(0, (sw - 520) // 2)}+{max(0, (sh - 860) // 2)}")
         root.lift()
         root.attributes("-topmost", True)
         root.after(1500, lambda: root.attributes("-topmost", False))
 
-        tk.Label(root, text="J.A.R.V.I.S.", bg=theme.BG_COLOR, fg=theme.FG_COLOR, font=("Consolas", 16, "bold")).pack(pady=(4, 0))
-        tk.Label(root, text="STARK INDUSTRIES // MARK VII HUD", bg=theme.BG_COLOR, fg=theme.ACCENT_COLOR, font=("Consolas", 8)).pack(pady=(0, 2))
+        self._top_bar = HudTopBar(root, root=root, bg=theme.BG_COLOR, fg=theme.FG_COLOR, on_vpn_toggle=self._toggle_vpn, on_account_click=self._open_account, on_theme_toggle=self._toggle_theme)
+        self._top_bar.pack(fill="x", padx=10, pady=(2, 2))
 
         self._wake_led = WakeIndicator(root, root)
         self._canvas = tk.Canvas(root, width=theme.CANVAS_SIZE, height=theme.CANVAS_SIZE, bg=theme.BG_COLOR, highlightthickness=0, cursor="hand2")
@@ -74,6 +70,27 @@ class JarvisWindow:
         self._render_frame()
         self._animate()
         root.after(600, self._handle_start)
+
+    def _toggle_vpn(self) -> None:
+        from jarvis.services.proton_vpn import ProtonVPNManager
+        vpn = ProtonVPNManager()
+        if vpn.is_installed():
+            vpn.launch_client()
+            self.show_status("PROTON VPN // CONEXÃO INICIADA")
+        else:
+            self.show_status("PROTON VPN // NÃO LOCALIZADO")
+
+    def _open_account(self) -> None:
+        from jarvis.ui.account_dialog import AccountSettingsDialog
+        AccountSettingsDialog(self._root, current_name="Ken", current_title="Senhor", on_save=lambda n, t: self.show_status(f"CONTA ATUALIZADA: {n} ({t})"))
+
+    def _toggle_theme(self) -> None:
+        self._theme_mode = "light" if self._theme_mode == "dark" else "dark"
+        pal = theme.get_theme_palette(self._theme_mode)
+        self._root.configure(bg=pal["bg"])
+        self._top_bar.set_palette(pal["bg"], pal["fg"])
+        self._canvas.configure(bg=pal["bg"])
+        self.show_status(f"TEMA // {self._theme_mode.upper()}")
 
     def _build_chat_panel(self, parent: tk.Misc) -> None:
         cb = tk.Frame(parent, bg=theme.CARD_BG, highlightbackground=theme.ACCENT_CYAN, highlightthickness=1, padx=8, pady=5)

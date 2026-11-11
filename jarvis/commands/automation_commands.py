@@ -15,11 +15,10 @@ _media = BrowserAndMediaController()
 
 def _open_folder_handler(ctx: CommandContext, utterance: str) -> Outcome:
     target = re.sub(r"^(?:abrir\s+pasta|abre\s+a\s+pasta|abrir\s+explorer\s+em|vai\s+na\s+pasta)\s*", "", utterance, flags=re.IGNORECASE).strip()
-    success = _explorer.open_folder(target)
-    if success:
-        ctx.reply(f"Windows Explorer aberto {'em ' + target if target else 'com sucesso'}, senhor.")
-    else:
-        ctx.reply("Não consegui abrir o Windows Explorer neste diretório, senhor.")
+    # 1. Fala primeiro a confirmação (protocolo sequencial estrito)
+    ctx.reply(f"Abrindo o Windows Explorer {'em ' + target if target else 'agora'}, senhor.")
+    # 2. Executa a abertura física somente após terminar de falar
+    _explorer.open_folder(target)
     return Outcome.CONTINUE
 
 
@@ -28,16 +27,15 @@ def _select_file_handler(ctx: CommandContext, utterance: str) -> Outcome:
     if not clean:
         ctx.reply("Qual arquivo o senhor deseja selecionar no Windows Explorer?")
         return Outcome.CONTINUE
-    success = _explorer.select_file_in_explorer(clean)
-    if success:
-        ctx.reply(f"Localizei e destaquei o arquivo '{clean}' no Windows Explorer, senhor.")
-    else:
-        ctx.reply(f"Não encontrei o arquivo '{clean}' nas pastas do sistema, senhor.")
+    # 1. Fala primeiro
+    ctx.reply(f"Localizando e destacando o arquivo '{clean}' no Windows Explorer, senhor.")
+    # 2. Executa a seleção após a fala
+    _explorer.select_file_in_explorer(clean)
     return Outcome.CONTINUE
 
 
 def _youtube_play_handler(ctx: CommandContext, utterance: str) -> Outcome:
-    query = re.sub(r"^(?:tocar\s+no\s+youtube|pesquisar\s+no\s+youtube|poe\s+no\s+yt|põe\s+no\s+yt|tocar\s+musica|tocar\s+música|bota\s+no\s+yt)\s*", "", utterance, flags=re.IGNORECASE).strip()
+    query = re.sub(r"^(?:tocar\s+no\s+youtube|pesquisar\s+no\s+youtube|poe\s+no\s+yt|põe\s+no\s+yt|bota\s+no\s+yt)\s*", "", utterance, flags=re.IGNORECASE).strip()
     if not query:
         parsed = SemanticIntentAdapter.parse_colloquial_action(utterance)
         if parsed and parsed["action"] == "play_youtube":
@@ -47,14 +45,16 @@ def _youtube_play_handler(ctx: CommandContext, utterance: str) -> Outcome:
         ctx.reply("O que o senhor gostaria de ouvir ou assistir no YouTube?")
         return Outcome.CONTINUE
 
-    _media.play_youtube_search(query)
+    # 1. Fala primeiro a confirmação
     ctx.reply(f"Reproduzindo '{query}' no YouTube agora mesmo, senhor.")
+    # 2. Abre o navegador somente após concluir a fala
+    _media.play_youtube_search(query)
     return Outcome.CONTINUE
 
 
 def _toggle_pause_handler(ctx: CommandContext, _utterance: str) -> Outcome:
-    _media.toggle_play_pause()
     ctx.reply("Comando de reprodução enviado ao vídeo, senhor.")
+    _media.toggle_play_pause()
     return Outcome.CONTINUE
 
 

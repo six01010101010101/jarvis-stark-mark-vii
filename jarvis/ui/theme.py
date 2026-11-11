@@ -1,56 +1,80 @@
-"""Tokens visuais e geometria 3D holográfica Tony Stark (Arc Reactor & Iron Man Helmet Mark VII)."""
+"""Tokens visuais, paletas Claro/Escuro e geometria holográfica Tony Stark."""
+
+from __future__ import annotations
 
 WINDOW_TITLE = "J.A.R.V.I.S. // STARK INDUSTRIES MARK VII"
-WINDOW_GEOMETRY = "480x880"
+WINDOW_GEOMETRY = "520x860"
 INITIAL_TEXT = "MARK VII // SISTEMAS DEFENSIVOS E IA ONLINE"
-LABEL_WRAP = 430
+LABEL_WRAP = 480
 
-# Paleta Holográfica Stark Mark VII HUD
-BG_COLOR = "#060A12"
-CARD_BG = "#070B12"
-FG_COLOR = "#00F0FF"
+DARK_THEME: dict[str, str] = {
+    "name": "dark",
+    "bg": "#060A12",
+    "card_bg": "#09111E",
+    "fg": "#00F0FF",
+    "text": "#E0F7FA",
+    "accent": "#00F0FF",
+    "dim": "#0E334D",
+    "active_btn": "#005073",
+    "inactive_btn": "#0C1826",
+    "hologram_glow": "#00F0FF",
+    "hologram_dim": "#005577",
+    "hologram_eye": "#E0FFFF",
+}
+
+LIGHT_THEME: dict[str, str] = {
+    "name": "light",
+    "bg": "#EBF2F7",
+    "card_bg": "#FFFFFF",
+    "fg": "#005270",
+    "text": "#102A43",
+    "accent": "#007799",
+    "dim": "#BAC7D5",
+    "active_btn": "#BEE3F8",
+    "inactive_btn": "#D9E2EC",
+    "hologram_glow": "#007799",
+    "hologram_dim": "#7AA5B8",
+    "hologram_eye": "#004466",
+}
+
+
+def get_theme_palette(mode: str = "dark") -> dict[str, str]:
+    """Retorna o dicionário de cores para o tema especificado ('dark' ou 'light')."""
+    return LIGHT_THEME if mode.lower() == "light" else DARK_THEME
+
+
+# Constantes de compatibilidade retroativa
+BG_COLOR = DARK_THEME["bg"]
+CARD_BG = DARK_THEME["card_bg"]
+FG_COLOR = DARK_THEME["fg"]
 ACCENT_COLOR = "#FFB703"
-ACCENT_CYAN = "#00F0FF"
+ACCENT_CYAN = DARK_THEME["accent"]
 ALERT_GREEN = "#00FF88"
-MUTED_COLOR = "#16344E"
-HOLO_CYAN = "#00F0FF"
+MUTED_COLOR = DARK_THEME["dim"]
+HOLO_CYAN = DARK_THEME["fg"]
 HOLO_GREEN = "#00FF88"
 HOLO_CORE = "#0077B6"
-ACTIVE_BTN_BG = "#003B5C"
-INACTIVE_BTN_BG = "#091726"
+ACTIVE_BTN_BG = DARK_THEME["active_btn"]
+INACTIVE_BTN_BG = DARK_THEME["inactive_btn"]
 
 CANVAS_SIZE = 180
 ANIMATION_INTERVAL_MS = 35
 
-# Vértices 3D normalizados do Capacete e Núcleo do Homem de Ferro
 IRONMAN_3D_VERTICES = (
-    # Topo do crânio
     (0, -65, 0), (-25, -55, 15), (25, -55, 15), (-35, -40, 20), (35, -40, 20),
-    # Linha da testa e sobrancelhas
     (-28, -20, 35), (28, -20, 35), (0, -22, 38),
-    # Olho esquerdo
     (-26, -10, 36), (-10, -10, 37), (-24, -5, 36), (-12, -5, 37),
-    # Olho direito
     (10, -10, 37), (26, -10, 36), (12, -5, 37), (24, -5, 36),
-    # Placa facial e bochechas
     (-35, 10, 25), (35, 10, 25), (-20, 35, 30), (20, 35, 30),
-    # Queixo
     (-10, 55, 25), (10, 55, 25), (0, 60, 25),
-    # Lateral e têmporas
     (-45, -15, 0), (45, -15, 0), (-40, 20, -5), (40, 20, -5),
 )
 
-# Arestas de conexão para renderização wireframe do holograma 3D
 IRONMAN_3D_EDGES = (
-    # Contorno superior
     (0, 1), (0, 2), (1, 3), (2, 4), (1, 5), (2, 6), (5, 7), (6, 7),
-    # Olho esquerdo
     (8, 9), (9, 11), (11, 10), (10, 8),
-    # Olho direito
     (12, 13), (13, 15), (15, 14), (14, 12),
-    # Máscara facial e queixo
     (5, 8), (6, 13), (8, 16), (13, 17), (16, 18), (17, 19),
     (18, 20), (19, 21), (20, 22), (21, 22),
-    # Laterais da armadura
     (3, 23), (4, 24), (23, 25), (24, 26), (25, 18), (26, 19),
 )

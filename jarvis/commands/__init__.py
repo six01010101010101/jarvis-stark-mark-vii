@@ -27,6 +27,7 @@ from jarvis.commands.telemetry_commands import telemetry_commands
 from jarvis.commands.timer_commands import timer_commands
 from jarvis.commands.user_shortcuts import user_shortcuts
 from jarvis.commands.voice_commands import voice_commands
+from jarvis.commands.vpn_commands import vpn_commands
 from jarvis.commands.weather_commands import weather_commands
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
         *close_commands(),
         *user_shortcuts(),
         *automation_commands(),
+        *vpn_commands(),
         *presence_commands(),
         *machine_commands(),
         *weather_commands(),
