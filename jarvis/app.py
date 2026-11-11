@@ -191,6 +191,13 @@ class JarvisApplication:
 
 def main() -> None:
     """Carrega as configurações e inicializa a interface gráfica."""
+    import sys
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = tk.Tk()
     try:

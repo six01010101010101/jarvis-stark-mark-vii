@@ -29,10 +29,17 @@ class TerminalBridge:
 
     @staticmethod
     def _enable_ansi_colors() -> None:
-        """Ativa cores ANSI (sinal verde) no console do Windows (ENABLE_VIRTUAL_TERMINAL_PROCESSING)."""
+        """Ativa UTF-8 e cores ANSI no console do Windows."""
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                if hasattr(stream, "reconfigure"):
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleOutputCP(65001)
             handle = kernel32.GetStdHandle(-11)
             mode = ctypes.c_uint32()
             if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
