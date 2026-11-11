@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from jarvis.commands.cognitive_commands import cognitive_commands
+from jarvis.commands.goal_commands import goal_commands
 from jarvis.commands.info_commands import info_commands
 from jarvis.commands.location_commands import location_commands
 from jarvis.commands.machine_commands import machine_commands
@@ -51,6 +52,7 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
         *multimedia_control_commands(),
         *screen_commands(),
         *note_commands(),
+        *goal_commands(),
         *marvel_commands(),
         *playlist_commands(),
         *cognitive_commands(),

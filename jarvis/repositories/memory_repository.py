@@ -129,3 +129,62 @@ class MemoryRepository:
         with self._conn:
             self._conn.execute(sql, (float(snap["ram_percent"]), float(snap["ram_used_gb"]), float(snap["ram_free_gb"]), float(snap["disk_free_gb"]), str(snap["power_status"])))
         return dict(snap)
+
+    def save_goal(self, goal_id: str, title: str, description: str = "", status: str = "opened", priority: int = 1, category: str = "general") -> None:
+        sql = """
+        INSERT INTO hivemind_goals (goal_id, title, description, status, priority, category, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(goal_id) DO UPDATE SET
+            title = excluded.title, description = excluded.description, status = excluded.status,
+            priority = excluded.priority, category = excluded.category, updated_at = CURRENT_TIMESTAMP;
+        """
+        with self._write_lock, self._conn:
+            self._conn.execute(sql, (goal_id.strip(), title.strip(), description.strip(), status, priority, category))
+
+    def get_goals(self, status: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        sql = "SELECT goal_id, title, description, status, priority, category, created_at FROM hivemind_goals"
+        params: tuple[Any, ...] = ()
+        if status:
+            sql += " WHERE status = ? ORDER BY priority DESC, id DESC LIMIT ?"
+            params = (status, limit)
+        else:
+            sql += " ORDER BY status ASC, priority DESC, id DESC LIMIT ?"
+            params = (limit,)
+        cur = self._conn.execute(sql, params)
+        return [dict(r) for r in cur.fetchall()]
+
+    def update_goal_status(self, goal_id: str, status: str) -> bool:
+        sql = "UPDATE hivemind_goals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE goal_id = ? OR LOWER(title) LIKE ?;"
+        pattern = f"%{goal_id.strip().lower()}%"
+        with self._write_lock, self._conn:
+            cur = self._conn.execute(sql, (status, goal_id.strip(), pattern))
+            return cur.rowcount > 0
+
+    def upsert_graph_node(self, node_id: str, label: str, node_type: str, metadata: str = "{}") -> None:
+        sql = """
+        INSERT INTO knowledge_graph_nodes (node_id, label, node_type, metadata, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(node_id) DO UPDATE SET
+            label = excluded.label, node_type = excluded.node_type, metadata = excluded.metadata, updated_at = CURRENT_TIMESTAMP;
+        """
+        with self._write_lock, self._conn:
+            self._conn.execute(sql, (node_id.strip().lower(), label.strip(), node_type.strip(), metadata))
+
+    def upsert_graph_edge(self, source: str, target: str, relation: str, weight: float = 1.0) -> None:
+        sql = """
+        INSERT INTO knowledge_graph_edges (source_node, target_node, relation, weight, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(source_node, target_node, relation) DO UPDATE SET
+            weight = excluded.weight, updated_at = CURRENT_TIMESTAMP;
+        """
+        with self._write_lock, self._conn:
+            self._conn.execute(sql, (source.strip().lower(), target.strip().lower(), relation.strip().lower(), weight))
+
+    def get_graph_edges(self, source: str | None = None) -> list[dict[str, Any]]:
+        if source:
+            sql = "SELECT source_node, target_node, relation, weight FROM knowledge_graph_edges WHERE source_node = ? OR target_node = ?;"
+            cur = self._conn.execute(sql, (source.strip().lower(), source.strip().lower()))
+        else:
+            sql = "SELECT source_node, target_node, relation, weight FROM knowledge_graph_edges LIMIT 50;"
+            cur = self._conn.execute(sql)
+        return [dict(r) for r in cur.fetchall()]

@@ -77,6 +77,37 @@ CREATE TABLE IF NOT EXISTS collective_insights (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS hivemind_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    status TEXT DEFAULT 'opened',
+    priority INTEGER DEFAULT 1,
+    category TEXT DEFAULT 'general',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_graph_nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT UNIQUE NOT NULL,
+    label TEXT NOT NULL,
+    node_type TEXT NOT NULL,
+    metadata TEXT DEFAULT '{}',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_node TEXT NOT NULL,
+    target_node TEXT NOT NULL,
+    relation TEXT NOT NULL,
+    weight REAL DEFAULT 1.0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_node, target_node, relation)
+);
+
 CREATE TABLE IF NOT EXISTS listener_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     state INTEGER DEFAULT 1,
@@ -99,6 +130,9 @@ CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestam
 CREATE INDEX IF NOT EXISTS idx_episodic_created ON episodic_conversations(created_at);
 CREATE INDEX IF NOT EXISTS idx_facts_category ON semantic_facts(category);
 CREATE INDEX IF NOT EXISTS idx_insights_topic ON collective_insights(topic);
+CREATE INDEX IF NOT EXISTS idx_goals_status ON hivemind_goals(status);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_src ON knowledge_graph_edges(source_node);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_tgt ON knowledge_graph_edges(target_node);
 CREATE INDEX IF NOT EXISTS idx_telemetry_time ON telemetry_logs(recorded_at);
 """
 

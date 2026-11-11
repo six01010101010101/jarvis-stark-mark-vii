@@ -1,4 +1,4 @@
-"""Motor de Mente Coletiva do J.A.R.V.I.S. Mark VII (Gemini + Raciocínio Profundo + Fatos)."""
+"""Motor de Mente Coletiva do J.A.R.V.I.S. Mark VII (Gemini + Raciocínio Profundo + Hivemind)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import re
 
 from jarvis.repositories.memory_repository import MemoryRepository
 from jarvis.services.collective_prompts import JARVIS_COLLECTIVE_MIND_PROMPT
+from jarvis.services.hivemind_coordinator import HivemindCoordinator
 from jarvis.services.semantic_wake_analyzer import SemanticWakeAnalyzer
 from jarvis.text_utils import normalize
 
@@ -28,6 +29,7 @@ class JarvisCollectiveMind:
     def __init__(self, repo: MemoryRepository, gemini_service: object | None = None) -> None:
         self.repo = repo
         self._gemini = gemini_service
+        self.hivemind = HivemindCoordinator(repo)
 
     def think_and_reply(self, user_text: str, in_patience_window: bool = False, lang: str = "pt") -> tuple[str, str]:
         """Processa a oração, distingue vocativo de tema e retorna (resposta_inteligente, modo_intencao)."""
@@ -46,6 +48,12 @@ class JarvisCollectiveMind:
         query = str(analysis["clean_query"])
         q_norm = normalize(query)
 
+        # Captura automática de metas e tangentes inspirada no Hivemind
+        tangent_reply = self.hivemind.capture_tangent_if_present(query)
+        if tangent_reply:
+            self.repo.save_episodic_turn_async(query, tangent_reply, intent_type="TASK_CAPTURE", lang=lang)
+            return tangent_reply, "TASK_CAPTURE"
+
         # Resposta de autoconsciência imediata se for sobre a própria identidade
         if any(w in q_norm for w in ("quem e voce", "quem e o jarvis", "o que e o jarvis", "o que seria o jarvis", "como voce funciona")) or (
             "jarvis" in q_norm and any(w in q_norm for w in ("o que", "quem", "seria", "como funciona", "explica", "o que e", "quem e"))
@@ -53,15 +61,16 @@ class JarvisCollectiveMind:
             self.repo.save_episodic_turn(query, STARK_SELF_EXPLANATION, intent_type="DEEP_CONVERSATION", lang=lang)
             return STARK_SELF_EXPLANATION, "DEEP_CONVERSATION"
 
-        # Constrói o contexto com fatos aprendidos + histórico recente da conversa
-        learned_facts = self.repo.get_learned_facts(limit=12)
-        facts_block = "\n".join(f"- {f}" for f in learned_facts) if learned_facts else "Nenhum fato adicional."
+        # Recuperação proativa contextual (Recall BM25 + Metas Ativas + Grafo)
+        augmented = self.hivemind.build_augmented_context(query)
         recent_history = self.repo.get_recent_episodic_context(limit=10)
         history_str = "\n".join(f"{'Usuário' if h['role'] == 'user' else 'J.A.R.V.I.S.'}: {h['content']}" for h in recent_history)
 
         full_prompt = (
             f"{JARVIS_COLLECTIVE_MIND_PROMPT}\n\n"
-            f"[FATOS NA MEMÓRIA CENTRAL DO USUÁRIO]:\n{facts_block}\n\n"
+            f"[RECALL PROATIVO RELEVANTE (BM25)]:\n{augmented['recalled_prompt_block']}\n\n"
+            f"[METAS ATIVAS DO USUÁRIO]:\n{augmented['active_goals_block']}\n\n"
+            f"[GRAFO DE RELAÇÕES E SUBSISTEMAS]:\n{augmented['graph_prompt_block']}\n\n"
             f"[HISTÓRICO RECENTE DA CONVERSA]:\n{history_str}\n\n"
             f"[IDIOMA]: Responda fluentemente no idioma '{lang}'.\n"
             f"[PERGUNTA DO USUÁRIO]: {query}\n\n"
