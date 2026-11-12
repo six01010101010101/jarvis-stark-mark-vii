@@ -1,7 +1,8 @@
-"""Estruturas centrais do sistema de comandos: contexto Fire-and-Forget, resultado e registro com cache."""
+"""Estruturas centrais de comandos: contexto protegido, resultado e registro seguro."""
 
 from __future__ import annotations
 
+import ctypes
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import threading
@@ -17,6 +18,7 @@ from jarvis.contracts import (
     Speaker,
     StatusView,
 )
+from jarvis.security.security_guard import SecurityGuard
 from jarvis.services.conversation_session import ConversationSession
 from jarvis.text_utils import normalize
 
@@ -35,7 +37,7 @@ class Outcome(Enum):
 
 @dataclass(frozen=True)
 class CommandContext:
-    """Dependências disponíveis para os comandos com disparo de voz prioritário (0ms DB delay)."""
+    """Dependências disponíveis para os comandos com proteção cibernética integrada."""
 
     speaker: Speaker
     listener: Listener
@@ -50,7 +52,6 @@ class CommandContext:
     session: object | None = None
 
     def _persist_reply_async(self, text: str) -> None:
-        """Persiste a resposta no SQLite e nuvem em background sem atrasar a voz."""
         try:
             if self.memory:
                 if hasattr(self.memory, "record_message_async"):
@@ -61,29 +62,24 @@ class CommandContext:
             pass
 
     def reply(self, text: str, pending_intent: str | None = None) -> None:
-        """Dispara o áudio no milissegundo 0 em paralelo com o banco de dados e abre Ciclo de Paciência."""
+        """Dispara áudio higienizado no ms 0 sem vazar dados sigilosos e abre ciclo de paciência."""
         from jarvis.services.rolling_transcript import GLOBAL_TRANSCRIPT
         from jarvis.services.telemetry_state_machine import AssistantState, GLOBAL_STATE_MACHINE
 
+        safe_text = SecurityGuard.redact_secrets(text)
         GLOBAL_STATE_MACHINE.transition_to(AssistantState.SPEAKING, "replying")
-        GLOBAL_TRANSCRIPT.add_turn("assistant", text)
-        print(f"📋 [LOG CMD 4/4 - RESPOSTA DO JARVIS] 🤖 J.A.R.V.I.S.: \"{text}\"", flush=True)
-        print("==========================================================================\n", flush=True)
-        self.view.show_status(text)
+        GLOBAL_TRANSCRIPT.add_turn("assistant", safe_text)
+        print(f"📋 [LOG CMD 4/4 - RESPOSTA] 🤖 J.A.R.V.I.S.: \"{safe_text}\"", flush=True)
+        self.view.show_status(safe_text)
         if hasattr(self.view, "append_chat"):
-            self.view.append_chat("assistant", text)
+            self.view.append_chat("assistant", safe_text)
 
         if self.session and hasattr(self.session, "mark_interaction"):
-            needs_followup = pending_intent is not None
-            self.session.mark_interaction(awaiting_answer=needs_followup, pending_intent=pending_intent)
+            self.session.mark_interaction(awaiting_answer=pending_intent is not None, pending_intent=pending_intent)
 
-        # 1. Gravação Fire-and-Forget no SQLite e Supabase em thread daemon
-        threading.Thread(target=self._persist_reply_async, args=(text,), name="reply-db-async", daemon=True).start()
+        threading.Thread(target=self._persist_reply_async, args=(safe_text,), name="reply-db-async", daemon=True).start()
+        self.speaker.say(safe_text)
 
-        # 2. Disparo imediato da voz (Prioridade Zero!)
-        self.speaker.say(text)
-
-        # 3. Mantém escuta ativa apenas se houver intenção pendente aguardando complemento
         if pending_intent is not None and self.session and hasattr(self.session, "activate_patience_window"):
             self.session.activate_patience_window()
             GLOBAL_STATE_MACHINE.transition_to(AssistantState.PATIENCE_WAIT, "patience_cycle")
@@ -109,7 +105,7 @@ class Command:
 
 @dataclass
 class CommandRegistry:
-    """Coleção ordenada de comandos com cache preditivo de 0ms e intuição de complexidade."""
+    """Coleção de comandos com cache preditivo e inspeção defensiva de injeção."""
 
     commands: list[Command] = field(default_factory=list)
     cache: IntentCache | None = None
@@ -125,20 +121,24 @@ class CommandRegistry:
         target = intent.get("target", "")
         reply = intent.get("reply", "")
 
-        if action == "open_url" and target:
-            if reply:
-                ctx.reply(reply)
-            ctx.launcher.open_url(target)
+        if not SecurityGuard.is_safe_shell_input(target):
+            ctx.reply("Comando bloqueado pelo protocolo de cibersegurança do Stark Shield.")
             return
 
-        if action == "open_app" and target:
+        safe_target = SecurityGuard.sanitize_command_argument(target)
+        if action == "open_url" and safe_target:
             if reply:
                 ctx.reply(reply)
-            ctx.launcher.launch(target)
+            ctx.launcher.open_url(safe_target)
+            return
+
+        if action == "open_app" and safe_target:
+            if reply:
+                ctx.reply(reply)
+            ctx.launcher.launch(safe_target)
             return
 
         if action == "close_tab":
-            import ctypes
             ctypes.windll.user32.keybd_event(0x11, 0, 0, 0)
             ctypes.windll.user32.keybd_event(0x57, 0, 0, 0)
             ctypes.windll.user32.keybd_event(0x57, 0, 0x0002, 0)
@@ -147,7 +147,6 @@ class CommandRegistry:
             return
 
         if action == "close_window":
-            import ctypes
             ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
             ctypes.windll.user32.keybd_event(0x73, 0, 0, 0)
             ctypes.windll.user32.keybd_event(0x73, 0, 0x0002, 0)
@@ -155,8 +154,8 @@ class CommandRegistry:
             ctx.reply(reply or "Janela encerrada, senhor.")
             return
 
-        if action == "close_app" and target:
-            ctx.processes.close_app(target)
+        if action == "close_app" and safe_target:
+            ctx.processes.close_app(safe_target)
             if reply:
                 ctx.reply(reply)
             return
@@ -164,7 +163,12 @@ class CommandRegistry:
         ctx.reply(reply if reply else "Não compreendi o comando, senhor.")
 
     def dispatch(self, ctx: CommandContext, utterance: str) -> Outcome:
-        """Executa comando rápido (<1.5s), consulta cache (0ms) ou aciona raciocínio profundo."""
+        """Executa comando de forma segura, com validação de payload e tratamento inteligente."""
+        is_valid, reason = SecurityGuard.validate_chat_input(utterance)
+        if not is_valid:
+            ctx.reply(f"Comando rejeitado por segurança: {reason}")
+            return Outcome.CONTINUE
+
         command = self.find(utterance)
         if command is not None:
             return command.handler(ctx, utterance)
@@ -189,6 +193,6 @@ class CommandRegistry:
             elif ctx.memory and action == "chat" and reply and len(utterance.strip()) >= 8:
                 ctx.memory.remember(f"qa:{normalize(utterance)[:80]}", reply, "knowledge")
             self._execute_intent(ctx, intent)
-        except Exception:  # noqa: BLE001
+        except Exception:
             ctx.reply(f"Não consegui processar o pedido '{utterance}', senhor.")
         return Outcome.CONTINUE

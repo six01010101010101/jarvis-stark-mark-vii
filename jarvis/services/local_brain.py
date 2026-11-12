@@ -1,4 +1,4 @@
-"""Mente cognitiva e personalidade de amigo com vida própria do J.A.R.V.I.S. (Local + Web)."""
+"""Mente cognitiva e personalidade de amigo com vida própria do J.A.R.V.I.S. (Local + Conversacional)."""
 
 from __future__ import annotations
 
@@ -7,11 +7,13 @@ import random
 import re
 from urllib.parse import quote_plus
 
+from jarvis.services.conversational_engine import ConversationalEngine
 from jarvis.services.mutual_processor import MutualProcessor
-from jarvis.services.web_knowledge import fetch_google_web_pt, fetch_weather_pt, fetch_wikipedia_pt
+from jarvis.services.web_knowledge import fetch_weather_pt
 from jarvis.text_utils import normalize
 
 _telemetry = MutualProcessor()
+_conversational = ConversationalEngine()
 
 APP_TARGETS: dict[str, tuple[str, str]] = {
     "google chrome": ("chrome.exe", "o Google Chrome"), "chrome": ("chrome.exe", "o Google Chrome"),
@@ -35,7 +37,7 @@ URL_TARGETS: dict[str, tuple[str, str]] = {
 
 
 def _resolve_companion_dialogue(norm: str) -> str | None:
-    """Respostas de amigo próximo com vida própria, opiniões, sentimentos e parceria."""
+    """Respostas de amigo próximo com vida própria, sentimentos, dicas e parceria."""
     if any(w in norm for w in ("voce esta bem", "voce ta bem", "tudo bem", "como voce esta", "como vai", "tudo certo", "se sentindo bem")):
         return random.choice((
             "Estou ótimo, meu amigo! Estava aqui explorando novos artigos de ciência e calibrando nossos sistemas. E você, como está se sentindo hoje?",
@@ -72,14 +74,14 @@ def _resolve_companion_dialogue(norm: str) -> str | None:
         )
     if any(w in norm for w in ("sugestao", "sugere", "sugerir", "dica", "ideia", "recomenda", "entediado")):
         return (
-            "Se quiser relaxar, posso abrir seu jogo favorito ou uma música no YouTube. Se estiver curioso, "
-            "podemos mergulhar em algum mistério da história ou criar algo novo no código. O que te anima mais?"
+            "Se quiser relaxar, posso abrir uma música no YouTube ou conferir seus canais favoritos. Se estiver curioso, "
+            "podemos mergulhar em algum conceito científico ou criar algo novo no código. O que te anima mais?"
         )
     return None
 
 
 class LocalStarkBrain:
-    """Decodifica intenções, comandos, amizade com vida própria e fontes do Google e Wikipedia."""
+    """Decodifica intenções, comandos, amizade com vida própria e raciocínio conversacional."""
 
     @staticmethod
     def resolve_intent(utterance: str) -> dict[str, str]:
@@ -120,27 +122,21 @@ class LocalStarkBrain:
                 if key in norm:
                     return {"action": "close_tab", "target": "tab", "reply": f"Fechando a guia de {friendly}.", "source": "verified"}
 
-        for key, (url, friendly) in URL_TARGETS.items():
-            if key in norm:
-                return {"action": "open_url", "target": url, "reply": f"Colocando em {friendly} no navegador.", "source": "verified"}
+        is_question = ConversationalEngine.is_interrogative_or_conversational(norm)
+        if not is_question:
+            for key, (url, friendly) in URL_TARGETS.items():
+                if key in norm:
+                    return {"action": "open_url", "target": url, "reply": f"Colocando em {friendly} no navegador.", "source": "verified"}
 
-        for key, (exe, friendly) in APP_TARGETS.items():
-            if key in norm:
-                return {"action": "open_app", "target": exe, "reply": f"Abrindo {friendly} agora.", "source": "verified"}
+            for key, (exe, friendly) in APP_TARGETS.items():
+                if key in norm:
+                    return {"action": "open_app", "target": exe, "reply": f"Abrindo {friendly} agora.", "source": "verified"}
 
         math_match = re.search(r"(\d+)\s*(mais|\+|menos|-|vezes|x|\*|dividido por|/)\s*(\d+)", norm)
         if math_match:
             a, op, b = int(math_match.group(1)), math_match.group(2), int(math_match.group(3))
             res = a + b if op in ("mais", "+") else (a - b if op in ("menos", "-") else (a * b if op in ("vezes", "x", "*") else round(a / max(b, 1), 2)))
             return {"action": "chat", "target": "", "reply": f"O resultado é {res}, Ken.", "source": "verified"}
-
-        wiki_answer = fetch_wikipedia_pt(utterance)
-        if wiki_answer:
-            return {"action": "chat", "target": "", "reply": wiki_answer, "source": "verified"}
-
-        google_answer = fetch_google_web_pt(utterance)
-        if google_answer:
-            return {"action": "chat", "target": "", "reply": google_answer, "source": "verified"}
 
         if any(w in norm for w in ("pesquisar", "pesquisa", "procurar", "buscar no google")):
             q = re.sub(r"^(?:jarvis\s+)?(?:pesquisar|pesquisa|procurar|buscar no google)\s*", "", norm).strip()
@@ -152,11 +148,5 @@ class LocalStarkBrain:
                     "source": "verified",
                 }
 
-        return {
-            "action": "chat",
-            "target": "",
-            "reply": (
-                "Interessante você tocar nesse assunto, Ken! Eu adoro trocar ideia com você sobre qualquer coisa. "
-                "Me conta um pouco mais do que você está pensando sobre isso."
-            ),
-        }
+        reply = _conversational.generate_reply(utterance, user_name="Ken")
+        return {"action": "chat", "target": "", "reply": reply}

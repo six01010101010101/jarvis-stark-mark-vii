@@ -1,4 +1,4 @@
-"""Serviço de IA Gemini Poliglota com Mente Coletiva, Autoconsciência Mark VII e Busca Google."""
+"""Serviço de IA Gemini Poliglota com Mente Coletiva, Autoconsciência Mark VII e Conversação."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 
 from jarvis.services.collective_prompts import JARVIS_COLLECTIVE_MIND_PROMPT, MIND_CLASSIFICATION_PROMPT
+from jarvis.services.conversational_engine import ConversationalEngine
 from jarvis.services.local_brain import LocalStarkBrain
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ MAX_ATTEMPTS = 1
 
 
 class GeminiAnswerService:
-    """Mente Coletiva Poliglota com inteligência profunda, autoconsciência Stark Mark VII e Google Search."""
+    """Mente Coletiva Poliglota com inteligência profunda, autoconsciência Stark Mark VII e diálogo humanizado."""
 
     def __init__(self, api_key: str, model: str, client: genai.Client | None = None) -> None:
         self._model = "gemini-2.0-flash" if ("3.5" in model or "2.5" in model) else model
@@ -30,6 +31,7 @@ class GeminiAnswerService:
                 retry_options=types.HttpRetryOptions(attempts=MAX_ATTEMPTS),
             ),
         )
+        self._conversational = ConversationalEngine(client=self._client, model=self._model)
         self._chat = self._client.chats.create(
             model=self._model,
             config=types.GenerateContentConfig(
@@ -43,7 +45,7 @@ class GeminiAnswerService:
         return (
             f"{JARVIS_COLLECTIVE_MIND_PROMPT}\n\n"
             f"Responda SEMPRE no mesmo idioma em que o usuário falou ({self._detected_language}). "
-            f"Ofereça respostas ricas, perspicazes e termine com perguntas inteligentes para manter o diálogo mútuo."
+            f"Ofereça respostas ricas, perspicazes e amigáveis, mantendo a postura de conselheiro e companheiro genial."
         )
 
     def set_language(self, idioma_detectado: str) -> None:
@@ -51,7 +53,7 @@ class GeminiAnswerService:
         self._detected_language = idioma_detectado or "pt-BR"
 
     def ask(self, question: str) -> str:
-        """Responde via Mente Coletiva profunda do Gemini com Google Search ou Cérebro Local."""
+        """Responde via Mente Coletiva profunda do Gemini com Google Search ou Motor Conversacional."""
         sys_prompt = self._build_system_prompt()
         try:
             res = self._client.models.generate_content(
@@ -74,7 +76,7 @@ class GeminiAnswerService:
                     return text
             except Exception as exc:
                 logger.debug("Mente Coletiva Local assumindo resposta em ask(): %s", exc)
-        return LocalStarkBrain.resolve_intent(question)["reply"]
+        return self._conversational.generate_reply(question, lang=self._detected_language)
 
     def interpret_intent(self, utterance: str) -> dict[str, str]:
         """Decifra a intenção do usuário: comandos de sistema imediatos ou diálogo profundo."""
@@ -99,8 +101,8 @@ class GeminiAnswerService:
                     "target": str(data.get("target", "")),
                     "reply": reply,
                 }
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Mente Local/Web assumindo resposta (%s)", exc)
+        except Exception as exc:
+            logger.debug("Mente Conversacional assumindo resposta (%s)", exc)
         return local_res
 
     def transcribe_audio(self, wav_bytes: bytes) -> str | None:
@@ -118,7 +120,7 @@ class GeminiAnswerService:
                 text = (res.text or "").strip().strip('"').strip("'")
                 if text:
                     return text
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("Tentativa de transcrição com %s falhou: %s", m, exc)
                 continue
         return None

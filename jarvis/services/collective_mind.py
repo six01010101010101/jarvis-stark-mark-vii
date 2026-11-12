@@ -110,7 +110,5 @@ class JarvisCollectiveMind:
         except Exception:
             pass
 
-        return (
-            f"Analisei sua reflexão sobre '{query}', senhor. Nossos módulos e telemetria estão 100% online. "
-            f"Gostaria que eu aprofundasse esse assunto pelo viés técnico ou prefere traçarmos uma estratégia prática?"
-        )
+        from jarvis.services.conversational_engine import ConversationalEngine
+        return ConversationalEngine().generate_reply(query, user_name="Ken")

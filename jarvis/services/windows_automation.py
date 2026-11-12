@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from jarvis.security.security_guard import SecurityGuard
+
 logger = logging.getLogger(__name__)
 
 SPECIAL_FOLDERS: dict[str, Path] = {
@@ -32,6 +34,9 @@ class WindowsExplorerAutomation:
 
     def open_folder(self, target: str | Path = "") -> bool:
         """Abre o Windows Explorer na pasta indicada ou no diretório de Downloads/Desktop."""
+        if not SecurityGuard.is_safe_shell_input(str(target)):
+            logger.warning("Tentativa de injeção bloqueada em open_folder: %s", target)
+            return False
         folder_path = self._resolve_path(target)
         try:
             target_str = str(folder_path) if folder_path.exists() else str(Path.home())
@@ -44,6 +49,9 @@ class WindowsExplorerAutomation:
 
     def select_file_in_explorer(self, file_path: str | Path) -> bool:
         """Abre o Explorer destacando/selecionando visualmente o arquivo solicitado."""
+        if not SecurityGuard.is_safe_shell_input(str(file_path)):
+            logger.warning("Tentativa de injeção bloqueada em select_file: %s", file_path)
+            return False
         resolved = Path(file_path).expanduser().resolve()
         if not resolved.exists():
             found = self.search_user_file(str(file_path))

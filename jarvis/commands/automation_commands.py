@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from jarvis.commands.registry import Command, CommandContext, Outcome
+from jarvis.security.security_guard import SecurityGuard
 from jarvis.services.browser_controller import BrowserAndMediaController
 from jarvis.services.semantic_intent_adapter import SemanticIntentAdapter
 from jarvis.services.windows_automation import WindowsExplorerAutomation
@@ -15,10 +16,14 @@ _media = BrowserAndMediaController()
 
 def _open_folder_handler(ctx: CommandContext, utterance: str) -> Outcome:
     target = re.sub(r"^(?:abrir\s+pasta|abre\s+a\s+pasta|abrir\s+explorer\s+em|vai\s+na\s+pasta)\s*", "", utterance, flags=re.IGNORECASE).strip()
+    if not SecurityGuard.is_safe_shell_input(target):
+        ctx.reply("Comando de pasta cancelado pelo protocolo de segurança Stark.")
+        return Outcome.CONTINUE
+    safe_target = SecurityGuard.sanitize_command_argument(target)
     # 1. Fala primeiro a confirmação (protocolo sequencial estrito)
-    ctx.reply(f"Abrindo o Windows Explorer {'em ' + target if target else 'agora'}, senhor.")
+    ctx.reply(f"Abrindo o Windows Explorer {'em ' + safe_target if safe_target else 'agora'}, senhor.")
     # 2. Executa a abertura física somente após terminar de falar
-    _explorer.open_folder(target)
+    _explorer.open_folder(safe_target)
     return Outcome.CONTINUE
 
 
@@ -27,10 +32,14 @@ def _select_file_handler(ctx: CommandContext, utterance: str) -> Outcome:
     if not clean:
         ctx.reply("Qual arquivo o senhor deseja selecionar no Windows Explorer?")
         return Outcome.CONTINUE
+    if not SecurityGuard.is_safe_shell_input(clean):
+        ctx.reply("Nome de arquivo cancelado por protocolo de cibersegurança.")
+        return Outcome.CONTINUE
+    safe_clean = SecurityGuard.sanitize_command_argument(clean)
     # 1. Fala primeiro
-    ctx.reply(f"Localizando e destacando o arquivo '{clean}' no Windows Explorer, senhor.")
+    ctx.reply(f"Localizando e destacando o arquivo '{safe_clean}' no Windows Explorer, senhor.")
     # 2. Executa a seleção após a fala
-    _explorer.select_file_in_explorer(clean)
+    _explorer.select_file_in_explorer(safe_clean)
     return Outcome.CONTINUE
 
 
