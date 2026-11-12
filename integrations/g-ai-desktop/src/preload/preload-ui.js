@@ -1,0 +1,30 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getCurrentTheme: () => ipcRenderer.invoke('get-current-theme'),
+  mouseEnterMenu: () => ipcRenderer.invoke('mouse-enter-menu'),
+  mouseLeaveMenu: () => ipcRenderer.invoke('mouse-leave-menu'),
+  minWindow: () => ipcRenderer.invoke('min-window'),
+  maxWindow: () => ipcRenderer.invoke('max-window'),
+  closeWindow: () => ipcRenderer.invoke('close-window'),
+  menusUpdated: () => ipcRenderer.invoke('menus-updated'),
+  stopSearch: () => ipcRenderer.invoke('stop-search'),
+  closeSearchWindow: () => ipcRenderer.invoke('close-search-window'),
+
+  createTab: (data) => ipcRenderer.invoke('create-tab', data),
+  switchTab: (data) => ipcRenderer.invoke('switch-tab', data),
+  closeTab: (data) => ipcRenderer.invoke('close-tab', data),
+  clickMenuItem: (data) => ipcRenderer.invoke('click-menu-item', data),
+  exportHtmlContent: (data) => ipcRenderer.invoke('export-html-content', data),
+  startSearch: (data) => ipcRenderer.invoke('start-search', data),
+  navigateSearch: (data) => ipcRenderer.invoke('navigate-search', data),
+  getDefaultAISupplier: (data) => ipcRenderer.invoke('get-default-ai-supplier', data),
+
+  onNewTabCreated: (callback) => ipcRenderer.on('new-tab-created', (e, data) => callback(data)),
+  onOldTabClosed: (callback) => ipcRenderer.on('old-tab-closed', (e, data) => callback(data)),
+  onTitleChanged: (callback) => ipcRenderer.on('title-changed', (e, data) => callback(data)),
+  onThemeChanged: (callback) => ipcRenderer.on('theme-changed', (e, data) => callback(data)),
+  onSetTabBarBackground: (callback) => ipcRenderer.on('set-tab-bar-background', (e, data) => callback(data)),
+  onUpdateMenus: (callback) => ipcRenderer.on('update-menus', (e, data) => callback(data)),
+  onSearchResultData: (callback) => ipcRenderer.on('search-result-data', (e, data) => callback(data)),
+});

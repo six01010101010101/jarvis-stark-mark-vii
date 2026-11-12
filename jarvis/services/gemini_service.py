@@ -1,4 +1,4 @@
-"""Serviço de IA Gemini Poliglota com Mente Coletiva, Autoconsciência Mark VII e Conversação."""
+"""Serviço de IA Gemini Poliglota com Mente Coletiva, Autoconsciência Mark VII e Multi-Supplier."""
 
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ from google.genai import types
 from jarvis.services.collective_prompts import JARVIS_COLLECTIVE_MIND_PROMPT, MIND_CLASSIFICATION_PROMPT
 from jarvis.services.conversational_engine import ConversationalEngine
 from jarvis.services.local_brain import LocalStarkBrain
+from jarvis.services.multi_ai_supplier import MultiAISupplierOrchestrator
 
 logger = logging.getLogger(__name__)
 
 TEMPERATURE = 0.75
-REQUEST_TIMEOUT_MS = 4_500
+REQUEST_TIMEOUT_MS = 6_500
 MAX_ATTEMPTS = 1
 
 
@@ -22,7 +23,8 @@ class GeminiAnswerService:
     """Mente Coletiva Poliglota com inteligência profunda, autoconsciência Stark Mark VII e diálogo humanizado."""
 
     def __init__(self, api_key: str, model: str, client: genai.Client | None = None) -> None:
-        self._model = "gemini-2.0-flash" if ("3.5" in model or "2.5" in model) else model
+        clean_model = model.replace("models/", "") if model else "gemini-3.5-flash-lite"
+        self._model = clean_model if ("3.5" in clean_model or "2.5" in clean_model) else "gemini-3.5-flash-lite"
         self._detected_language = "pt-BR"
         self._client = client or genai.Client(
             api_key=api_key,
@@ -31,15 +33,8 @@ class GeminiAnswerService:
                 retry_options=types.HttpRetryOptions(attempts=MAX_ATTEMPTS),
             ),
         )
+        self._supplier = MultiAISupplierOrchestrator(client=self._client, api_key=api_key)
         self._conversational = ConversationalEngine(client=self._client, model=self._model)
-        self._chat = self._client.chats.create(
-            model=self._model,
-            config=types.GenerateContentConfig(
-                system_instruction=self._build_system_prompt(),
-                temperature=TEMPERATURE,
-                candidate_count=1,
-            ),
-        )
 
     def _build_system_prompt(self) -> str:
         return (
@@ -54,28 +49,9 @@ class GeminiAnswerService:
 
     def ask(self, question: str) -> str:
         """Responde via Mente Coletiva profunda do Gemini com Google Search ou Motor Conversacional."""
-        sys_prompt = self._build_system_prompt()
-        try:
-            res = self._client.models.generate_content(
-                model=self._model,
-                contents=question,
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_prompt,
-                    temperature=TEMPERATURE,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                ),
-            )
-            text = (res.text or "").strip()
-            if text:
-                return text
-        except Exception:
-            try:
-                response = self._chat.send_message(question)
-                text = (response.text or "").strip()
-                if text:
-                    return text
-            except Exception as exc:
-                logger.debug("Mente Coletiva Local assumindo resposta em ask(): %s", exc)
+        ans = self._supplier.query_knowledge(question, system_instruction=self._build_system_prompt())
+        if ans:
+            return ans
         return self._conversational.generate_reply(question, lang=self._detected_language)
 
     def interpret_intent(self, utterance: str) -> dict[str, str]:
@@ -102,7 +78,12 @@ class GeminiAnswerService:
                     "reply": reply,
                 }
         except Exception as exc:
-            logger.debug("Mente Conversacional assumindo resposta (%s)", exc)
+            logger.debug("Tentando supplier de conhecimento para oração (%s): %s", utterance, exc)
+
+        knowledge_reply = self._supplier.query_knowledge(utterance, system_instruction=self._build_system_prompt())
+        if knowledge_reply:
+            return {"action": "chat", "target": "", "reply": knowledge_reply}
+
         return local_res
 
     def transcribe_audio(self, wav_bytes: bytes) -> str | None:
@@ -111,7 +92,7 @@ class GeminiAnswerService:
             "Transcreva rigorosamente apenas a fala humana presente neste áudio no idioma original falado. "
             "Se houver apenas ruído, latido, miado ou silêncio, retorne vazio. Sem aspas e sem explicações."
         )
-        for m in ("gemini-2.0-flash", "gemini-1.5-flash"):
+        for m in ("gemini-3.5-flash-lite", "gemini-2.5-flash-lite"):
             try:
                 res = self._client.models.generate_content(
                     model=m,
