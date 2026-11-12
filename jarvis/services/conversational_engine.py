@@ -76,11 +76,35 @@ class ConversationalEngine:
         return self._smart_fallback(utterance, user_name)
 
     @staticmethod
+    def detect_tone(norm_text: str) -> str:
+        """Identifica se o usuário está em tom de brincadeira, papo sério ou neutro."""
+        if any(w in norm_text for w in ("brincando", "brincadeira", "zoeira", "kkk", "haha", "rsrs", "piada", "rir")):
+            return "HUMOR"
+        if any(w in norm_text for w in ("serio", "papo serio", "urgente", "grave", "foco", "importante", "prioridade")):
+            return "SERIOUS"
+        return "NEUTRAL"
+
+    @staticmethod
     def _smart_fallback(utterance: str, user_name: str) -> str:
         """Resposta local inteligente e amigável sem dados brutos aleatórios."""
+        from datetime import datetime
+        import random
         from jarvis.text_utils import normalize
         norm = normalize(utterance)
         salutation = f"senhor {user_name}" if user_name else "senhor"
+
+        if any(w in norm for w in ("que horas", "hora certa", "horario", "horas sao")):
+            now = datetime.now()
+            return f"Agora são exatamente {now.hour} horas e {now.minute} minutos, {salutation}."
+
+        if any(w in norm for w in ("quantos graus", "temperatura", "clima", "previsao")):
+            from jarvis.services.web_knowledge import fetch_weather_pt
+            return fetch_weather_pt(utterance)
+
+        if any(w in norm for w in ("piada", "fazer rir", "engracada", "engracado")):
+            from jarvis.commands.joke_commands import TECH_JOKES
+            return f"Com certeza! {random.choice(TECH_JOKES)}"
+
         if any(w in norm for w in ("voce esta bem", "tudo bem", "como vai", "como voce esta", "ta bem", "se sentindo bem")):
             return (
                 f"Estou muito bem, {salutation}! Todos os meus núcleos neurais e telemetria estão operando com 100% de precisão. "
@@ -97,6 +121,13 @@ class ConversationalEngine:
                 f"Com certeza, {salutation}! {topic.capitalize()} é um tema fascinante. Na essência, trata-se de uma solução projetada para "
                 f"otimizar processos e conectar propósitos de forma inteligente. Quer que analisemos os detalhes técnicos ou as aplicações práticas?"
             )
+
+        tone = ConversationalEngine.detect_tone(norm)
+        if tone == "HUMOR":
+            return f"Haha, muito boa essa, {salutation}! Adoro o seu bom humor. No que mais posso ser útil com meu intelecto digital?"
+        if tone == "SERIOUS":
+            return f"Entendido, {salutation}, foco total e sem distrações. Estou pronto para executar essa prioridade com máxima precisão. Como deseja proceder?"
+
         return (
             f"Compreendi perfeitamente sua reflexão, {salutation}. Estou totalmente à disposição para explorar essa ideia com você, "
             f"analisar novos ângulos ou executar qualquer comando na sua máquina. O que gostaria de fazer agora?"

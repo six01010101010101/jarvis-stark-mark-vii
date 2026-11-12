@@ -26,7 +26,7 @@ class ConversationSession:
 
     def __init__(
         self,
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 15.0,
         patience_seconds: float | None = None,
         silence_tolerance: float = 2.2,
     ) -> None:
@@ -166,6 +166,11 @@ class ConversationSession:
     def is_close_phrase(self, utterance: str) -> bool:
         norm = normalize(utterance)
         return any(trigger in norm for trigger in self.CLOSE_TRIGGERS)
+
+    @staticmethod
+    def is_assistance_trigger(utterance: str) -> bool:
+        norm = normalize(utterance)
+        return any(t in norm for t in ("me ajude", "me ajuda", "preciso de ajuda", "me auxilie", "socorro"))
 
     def set_interrupted_speech(self, text: str) -> None:
         """Armazena o texto que estava sendo falado quando o usuário pediu para parar."""

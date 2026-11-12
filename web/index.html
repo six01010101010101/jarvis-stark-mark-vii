@@ -28,6 +28,9 @@
         </div>
       </div>
       <div class="header-controls">
+        <div class="active-dialogue-badge" id="active-dialogue-badge" style="display: none;">
+          <span class="status-pulse-dot"></span> 🟢 CONVERSA ATIVA (<span id="dialogue-countdown">15s</span>)
+        </div>
         <div class="vpn-pill" id="vpn-status-tag">🛡️ PROTON VPN: PRONTO</div>
         <button class="hud-btn" id="btn-theme-toggle">🌓 TEMA</button>
       </div>
@@ -75,9 +78,13 @@
           <canvas id="visualizer-canvas"></canvas>
         </div>
         <div class="quick-chips">
-          <button class="chip-btn" data-query="Jarvis, quais são minhas metas?">🎯 MINHAS METAS</button>
+          <button class="chip-btn" data-query="Jarvis, me ajude">🤝 ME AJUDE</button>
+          <button class="chip-btn" data-query="Jarvis, conte uma piada">😄 PIADA</button>
+          <button class="chip-btn" data-query="Jarvis, alt tab">🔄 ALT+TAB</button>
+          <button class="chip-btn" data-query="Jarvis, área de trabalho">🖥️ ÁREA DE TRABALHO</button>
+          <button class="chip-btn" data-query="Jarvis, gerenciador de tarefas">⚡ TAREFAS</button>
+          <button class="chip-btn" data-query="Jarvis, que horas são?">🕒 HORA</button>
           <button class="chip-btn" data-query="Jarvis, como está a GPU e a telemetria?">📊 TELEMETRIA</button>
-          <button class="chip-btn" data-query="Jarvis, quem é o Jarvis?">🤖 AUTO-CONSCIÊNCIA</button>
           <button class="chip-btn" data-query="Jarvis, poe no yt som relaxante">🎵 YOUTUBE</button>
         </div>
       </section>

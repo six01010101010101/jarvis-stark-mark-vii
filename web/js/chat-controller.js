@@ -12,6 +12,9 @@ export class ChatController {
     this.sendBtn = document.getElementById("btn-send");
     this.micBtn = document.getElementById("btn-mic");
     this.stopBtn = document.getElementById("btn-stop");
+    this.dialogueBadge = document.getElementById("active-dialogue-badge");
+    this.dialogueCountdown = document.getElementById("dialogue-countdown");
+    this.dialogueTimer = null;
     this.isListening = false;
     this.initEvents();
   }
@@ -50,6 +53,41 @@ export class ChatController {
     if (res && res.reply) {
       this.appendMessage("assistant", res.reply);
       this.speakText(res.reply);
+
+      const normText = text.toLowerCase();
+      const normReply = res.reply.toLowerCase();
+      if (normText.includes("ajude") || normText.includes("ajuda") || normReply.includes("posso te ajudar, chefe")) {
+        this.startActiveDialogueCountdown(15);
+      } else if (normText.includes("piada") || normText.startsWith("abra") || normText.startsWith("feche") || normText.includes("alt tab")) {
+        this.stopActiveDialogueCountdown();
+      }
+    }
+  }
+
+  startActiveDialogueCountdown(seconds = 15) {
+    this.stopActiveDialogueCountdown();
+    if (!this.dialogueBadge || !this.dialogueCountdown) return;
+    this.dialogueBadge.style.display = "inline-flex";
+    let rem = seconds;
+    this.dialogueCountdown.textContent = `${rem}s`;
+
+    this.dialogueTimer = setInterval(() => {
+      rem -= 1;
+      if (rem <= 0) {
+        this.stopActiveDialogueCountdown();
+      } else {
+        this.dialogueCountdown.textContent = `${rem}s`;
+      }
+    }, 1000);
+  }
+
+  stopActiveDialogueCountdown() {
+    if (this.dialogueTimer) {
+      clearInterval(this.dialogueTimer);
+      this.dialogueTimer = null;
+    }
+    if (this.dialogueBadge) {
+      this.dialogueBadge.style.display = "none";
     }
   }
 
@@ -57,6 +95,7 @@ export class ChatController {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
+    this.stopActiveDialogueCountdown();
     this.setInteractionState(false);
     this.appendMessage("assistant", "Às suas ordens, senhor. Fala silenciada.");
   }

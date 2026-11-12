@@ -130,12 +130,16 @@ class CommandRegistry:
             if reply:
                 ctx.reply(reply)
             ctx.launcher.open_url(safe_target)
+            if ctx.session and hasattr(ctx.session, "close_dialogue"):
+                ctx.session.close_dialogue()
             return
 
         if action == "open_app" and safe_target:
             if reply:
                 ctx.reply(reply)
             ctx.launcher.launch(safe_target)
+            if ctx.session and hasattr(ctx.session, "close_dialogue"):
+                ctx.session.close_dialogue()
             return
 
         if action == "close_tab":
@@ -144,6 +148,8 @@ class CommandRegistry:
             ctypes.windll.user32.keybd_event(0x57, 0, 0x0002, 0)
             ctypes.windll.user32.keybd_event(0x11, 0, 0x0002, 0)
             ctx.reply(reply or "Aba do navegador encerrada, senhor.")
+            if ctx.session and hasattr(ctx.session, "close_dialogue"):
+                ctx.session.close_dialogue()
             return
 
         if action == "close_window":
@@ -152,12 +158,16 @@ class CommandRegistry:
             ctypes.windll.user32.keybd_event(0x73, 0, 0x0002, 0)
             ctypes.windll.user32.keybd_event(0x12, 0, 0x0002, 0)
             ctx.reply(reply or "Janela encerrada, senhor.")
+            if ctx.session and hasattr(ctx.session, "close_dialogue"):
+                ctx.session.close_dialogue()
             return
 
         if action == "close_app" and safe_target:
             ctx.processes.close_app(safe_target)
             if reply:
                 ctx.reply(reply)
+            if ctx.session and hasattr(ctx.session, "close_dialogue"):
+                ctx.session.close_dialogue()
             return
 
         ctx.reply(reply if reply else "Não compreendi o comando, senhor.")

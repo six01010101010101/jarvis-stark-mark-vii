@@ -8,6 +8,7 @@ from jarvis.commands.automation_commands import automation_commands
 from jarvis.commands.cognitive_commands import cognitive_commands
 from jarvis.commands.goal_commands import goal_commands
 from jarvis.commands.info_commands import info_commands
+from jarvis.commands.joke_commands import joke_commands
 from jarvis.commands.location_commands import location_commands
 from jarvis.commands.machine_commands import machine_commands
 from jarvis.commands.marvel_easter_eggs import marvel_commands
@@ -29,6 +30,7 @@ from jarvis.commands.user_shortcuts import user_shortcuts
 from jarvis.commands.voice_commands import voice_commands
 from jarvis.commands.vpn_commands import vpn_commands
 from jarvis.commands.weather_commands import weather_commands
+from jarvis.commands.window_navigation_commands import window_navigation_commands
 
 if TYPE_CHECKING:
     from jarvis.services.intent_cache import IntentCache
@@ -42,6 +44,8 @@ def build_registry(cache: IntentCache | None = None) -> CommandRegistry:
     registry.register(
         *stop_commands(),
         *resume_commands(),
+        *joke_commands(),
+        *window_navigation_commands(),
         *close_commands(),
         *user_shortcuts(),
         *automation_commands(),

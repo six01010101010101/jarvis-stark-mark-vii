@@ -8,6 +8,7 @@ import re
 from urllib.parse import quote_plus
 
 from jarvis.services.conversational_engine import ConversationalEngine
+from jarvis.services.linguistic_conjugator import LinguisticConjugator
 from jarvis.services.mutual_processor import MutualProcessor
 from jarvis.services.web_knowledge import fetch_weather_pt
 from jarvis.text_utils import normalize
@@ -110,20 +111,32 @@ class LocalStarkBrain:
         if any(w in norm for w in ("telemetria", "como esta a maquina", "como esta o pc", "saude do pc", "memoria ram", "uso de cpu")):
             return {"action": "chat", "target": "", "reply": _telemetry.get_machine_health_report(), "source": "verified"}
 
-        if any(c in norm for c in ("fechar", "fecha", "feche", "fechasse", "encerrar", "encerra", "encerrasse", "finalizar")):
+        action_type, action_target = LinguisticConjugator.extract_action_and_target(utterance)
+        if action_type == "close" or any(c in norm for c in ("fechar", "fecha", "feche", "encerrar", "encerra", "terminar", "finalizar")):
             if any(t in norm for t in ("aba", "guia", "site")):
                 return {"action": "close_tab", "target": "tab", "reply": "Aba do navegador encerrada.", "source": "verified"}
             if "janela" in norm:
                 return {"action": "close_window", "target": "window", "reply": "Janela ativa encerrada.", "source": "verified"}
             for key, (_exe, friendly) in APP_TARGETS.items():
-                if key in norm:
+                if key in action_target or key in norm:
                     return {"action": "close_app", "target": key, "reply": f"Encerrando {friendly} agora.", "source": "verified"}
             for key, (_url, friendly) in URL_TARGETS.items():
-                if key in norm:
+                if key in action_target or key in norm:
                     return {"action": "close_tab", "target": "tab", "reply": f"Fechando a guia de {friendly}.", "source": "verified"}
+            if action_target:
+                return {"action": "close_app", "target": action_target, "reply": f"Encerrando {action_target} agora.", "source": "verified"}
 
         is_question = ConversationalEngine.is_interrogative_or_conversational(norm)
         if not is_question:
+            if action_type == "open" and action_target:
+                for key, (url, friendly) in URL_TARGETS.items():
+                    if key in action_target:
+                        return {"action": "open_url", "target": url, "reply": f"Colocando em {friendly} no navegador.", "source": "verified"}
+                for key, (exe, friendly) in APP_TARGETS.items():
+                    if key in action_target:
+                        return {"action": "open_app", "target": exe, "reply": f"Abrindo {friendly} agora.", "source": "verified"}
+                return {"action": "open_app", "target": action_target, "reply": f"Abrindo {action_target} agora, senhor.", "source": "verified"}
+
             for key, (url, friendly) in URL_TARGETS.items():
                 if key in norm:
                     return {"action": "open_url", "target": url, "reply": f"Colocando em {friendly} no navegador.", "source": "verified"}
